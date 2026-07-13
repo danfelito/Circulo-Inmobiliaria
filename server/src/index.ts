@@ -12,7 +12,7 @@ import { analyzeWithAi } from './openai.js';
 import { calculateLeadMetrics, matchProperties } from './scoring.js';
 import { getProperties, getProviders, importProperties, saveLead, saveProviders, saveSearch, updateLeadResult } from './repository.js';
 import { collectProviderInventory } from './providers.js';
-import { sendAdvisorEmail } from './email.js';
+import { getEmailConfigurationStatus, sendAdvisorEmail, sendTestEmail } from './email.js';
 import { issueAdminToken, validateAdminCredentials, verifyAdminToken } from './adminAuth.js';
 
 const app = express();
@@ -24,11 +24,11 @@ app.use(express.json({ limit: '3mb' }));
 
 const publicLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 60, standardHeaders: true, legacyHeaders: false });
 const submitLimiter = rateLimit({ windowMs: 30 * 60 * 1000, limit: 8, standardHeaders: true, legacyHeaders: false });
-const adminLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 12, standardHeaders: true, legacyHeaders: false });
+const adminLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: true, legacyHeaders: false });
 app.use('/api', publicLimiter);
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, service: 'circulo-inmobiliario', timestamp: new Date().toISOString(), mode: config.supabaseUrl ? 'supabase' : 'demo' });
+  res.json({ ok: true, service: 'circulo-inmobiliario', timestamp: new Date().toISOString(), mode: config.supabaseUrl ? 'supabase' : 'demo', model: config.openaiModel });
 });
 
 app.get('/api/demo/properties', async (_req, res, next) => {
@@ -64,10 +64,19 @@ app.post('/api/leads', submitLimiter, async (req, res, next) => {
       disclaimer: 'Las propiedades no se muestran directamente al cliente hasta que un asesor confirme disponibilidad, precio y condiciones.',
     };
 
-    await updateLeadResult(stored.id, responsePayload, found);
-    await saveSearch(stored.id, parsed.data, ai.analysis, matches);
-    try { await sendAdvisorEmail(stored.id, parsed.data, ai.analysis, matches); }
-    catch (emailError) { console.error('Advisor email failed.', emailError instanceof Error ? emailError.message : 'unknown'); }
+    await Promise.allSettled([
+      updateLeadResult(stored.id, responsePayload, found),
+      saveSearch(stored.id, parsed.data, ai.analysis, matches),
+    ]).then((results) => results.forEach((result) => {
+      if (result.status === 'rejected') console.error('Persistence step failed.', result.reason instanceof Error ? result.reason.message : 'unknown');
+    }));
+
+    try {
+      const emailResult = await sendAdvisorEmail(stored.id, parsed.data, ai.analysis, matches);
+      console.info('Advisor email result.', JSON.stringify(emailResult));
+    } catch (emailError) {
+      console.error('Advisor email failed.', emailError instanceof Error ? emailError.message : 'unknown');
+    }
     return res.status(201).json(responsePayload);
   } catch (error) { return next(error); }
 });
@@ -83,6 +92,23 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
   if (!verifyAdminToken(token)) return res.status(401).json({ error: 'Sesión administrativa inválida o vencida.' });
   next();
 }
+
+app.get('/api/admin/status', requireAdmin, async (_req, res) => {
+  const providers = await getProviders();
+  res.json({
+    ok: true,
+    login: config.adminLogin,
+    model: config.openaiModel,
+    openaiConfigured: Boolean(config.openaiApiKey),
+    supabaseConfigured: Boolean(config.supabaseUrl && config.supabaseServiceRoleKey),
+    email: getEmailConfigurationStatus(),
+    activeSources: providers.filter((provider) => provider.enabled && provider.baseUrl).length,
+  });
+});
+
+app.post('/api/admin/test-email', requireAdmin, async (_req, res, next) => {
+  try { res.json(await sendTestEmail()); } catch (error) { next(error); }
+});
 
 app.get('/api/admin/providers', requireAdmin, async (_req, res, next) => {
   try { res.json(await getProviders()); } catch (error) { next(error); }
@@ -108,7 +134,7 @@ app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
   void _next;
   if (error instanceof z.ZodError) return res.status(422).json({ error: 'Datos inválidos.', issues: error.flatten() });
   console.error('Request failed.', error instanceof Error ? error.message : 'unknown');
-  return res.status(500).json({ error: 'No fue posible completar la solicitud. Intenta nuevamente.' });
+  return res.status(500).json({ error: error instanceof Error ? error.message : 'No fue posible completar la solicitud. Intenta nuevamente.' });
 });
 
 app.listen(config.port, () => { console.log(`Círculo Inmobiliario escuchando en puerto ${config.port}`); });
