@@ -7,8 +7,30 @@ const escapeHtml = (value: unknown) => String(value ?? '')
 
 const currency = (value: number) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(value);
 
+export function getEmailConfigurationStatus() {
+  return {
+    configured: Boolean(config.resendApiKey && config.emailFrom && config.advisorEmail),
+    recipient: config.advisorEmail,
+    sender: config.emailFrom,
+    provider: 'Resend',
+  };
+}
+
+export async function sendTestEmail() {
+  if (!config.resendApiKey) throw new Error('RESEND_API_KEY no está configurada en Render.');
+  const resend = new Resend(config.resendApiKey);
+  const result = await resend.emails.send({
+    from: config.emailFrom,
+    to: [config.advisorEmail],
+    subject: 'Prueba de correo — Círculo Internacional de Bienes Raíces',
+    html: '<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto"><div style="border-top:6px solid #f51524;padding-top:18px"><h1>Prueba de correo correcta</h1></div><p>Este mensaje confirma que Render, Resend y el correo del asesor están conectados.</p></div>',
+  });
+  if (result.error) throw new Error(result.error.message);
+  return { sent: true, id: result.data?.id, recipient: config.advisorEmail };
+}
+
 export async function sendAdvisorEmail(leadId: string, lead: LeadInput, analysis: AiAnalysis, matches: MatchResult[]) {
-  if (!config.resendApiKey) return { sent: false, mode: 'demo' as const };
+  if (!config.resendApiKey) return { sent: false, mode: 'demo' as const, reason: 'RESEND_API_KEY no configurada' };
   const resend = new Resend(config.resendApiKey);
   const properties = matches.slice(0, 12).map((match, index) => `
     <div style="border:1px solid #e3e3e3;border-left:4px solid #f51524;border-radius:10px;padding:16px;margin:0 0 14px">
