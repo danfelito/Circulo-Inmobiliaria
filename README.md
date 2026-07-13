@@ -1,5 +1,7 @@
 # Círculo Internacional de Bienes Raíces
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/danfelito/Circulo-Inmobiliaria)
+
 Aplicación full-stack para captar, calificar y analizar solicitudes inmobiliarias de renta o compra. Presenta coincidencias del catálogo, explica restricciones y permite reconfigurar la búsqueda sin empezar de cero.
 
 ## Funciones incluidas
@@ -7,12 +9,10 @@ Aplicación full-stack para captar, calificar y analizar solicitudes inmobiliari
 - Wizard móvil/escritorio para renta y compra.
 - Validación de datos y contradicciones.
 - Scoring explicable de propiedades.
-- OpenAI Responses API con salida estructurada y fallback determinista.
+- OpenAI Responses API con respuesta JSON y fallback determinista.
 - Persistencia en Supabase con RLS.
 - Correo profesional mediante Resend a `patyestr@hotmail.com`.
 - Idempotencia para evitar correos duplicados.
-- Panel administrativo con 14 proveedores configurables.
-- Importación CSV/JSON.
 - Modo demo sin servicios externos.
 - Aviso de Privacidad y Términos provisionales.
 - Blueprint de Render y CI de GitHub.
@@ -41,40 +41,34 @@ Sin credenciales, la aplicación funciona en modo demo.
 
 | Variable | Uso |
 |---|---|
-| `PORT` | Puerto del servidor. |
-| `CLIENT_ORIGIN` | Origen permitido por CORS. En producción usa la URL pública. |
-| `APP_BASE_URL` | URL pública de la aplicación. |
+| `PORT` | Puerto del servidor. Render usa `10000`. |
 | `SUPABASE_URL` | URL del proyecto Supabase. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Llave secreta exclusiva del backend. |
 | `OPENAI_API_KEY` | API key del proyecto OpenAI. |
-| `OPENAI_MODEL` | Modelo compatible con Responses API y Structured Outputs. |
+| `OPENAI_MODEL` | Modelo compatible con Responses API; por defecto `gpt-5.6`. |
 | `RESEND_API_KEY` | API key de Resend. |
 | `EMAIL_FROM` | Remitente verificado en Resend. |
 | `ADVISOR_EMAIL` | Destinatario de leads; por defecto `patyestr@hotmail.com`. |
-| `ADMIN_PASSWORD_HASH` | Hash bcrypt de la contraseña administrativa. |
-| `SESSION_SECRET` | Secreto largo para firmar tokens administrativos. |
+| `SESSION_SECRET` | Secreto generado automáticamente por Render. |
 
-Genera el hash administrativo:
-
-```bash
-npm run hash-admin -- "CAMBIA_ESTA_CONTRASEÑA_POR_UNA_SEGURA"
-```
+`CLIENT_ORIGIN` y `APP_BASE_URL` solo son necesarios en desarrollo o si posteriormente se separan frontend y backend. En Render, ambos se sirven desde el mismo dominio.
 
 ## Configurar Supabase
 
-1. Crea un proyecto.
-2. Ejecuta `supabase/migrations/202607120001_initial.sql` desde el SQL Editor o mediante Supabase CLI.
-3. Copia la URL y la service role key a Render. No coloques la service role key en variables de Vite ni en el navegador.
-4. Verifica que RLS esté activo y que `anon`/`authenticated` no tengan acceso directo.
+1. Crea o selecciona un proyecto.
+2. Ejecuta `supabase/migrations/202607120001_initial.sql` desde SQL Editor.
+3. Copia la URL del proyecto y la `service_role` key a Render.
+4. No coloques la `service_role` key en variables de Vite ni en el navegador.
+5. Verifica que RLS esté activo y que `anon`/`authenticated` no tengan acceso directo.
 
-La aplicación inserta todos los leads mediante Express; el frontend nunca escribe directamente en Supabase.
+La aplicación inserta los leads mediante Express; el frontend nunca escribe directamente en Supabase.
 
 ## Configurar OpenAI
 
 1. Crea una API key de proyecto.
-2. Configura `OPENAI_API_KEY` y `OPENAI_MODEL` en Render.
-3. El backend usa la Responses API con salida estructurada validada por Zod y `store: false`.
-4. Nombre, correo y teléfono no se envían a OpenAI.
+2. Configura `OPENAI_API_KEY` en Render.
+3. Conserva `OPENAI_MODEL=gpt-5.6` o reemplázalo por otro modelo compatible con Responses API.
+4. El backend usa `store: false` y no envía nombre, correo ni teléfono al modelo.
 
 Si OpenAI falla o no está configurado, el motor determinista continúa funcionando.
 
@@ -100,15 +94,20 @@ Endpoint de salud: `GET /api/health`.
 
 ## Desplegar en Render
 
-1. En Render selecciona **New > Blueprint**.
-2. Elige este repositorio; Render leerá `render.yaml`.
-3. Captura las variables marcadas como `sync: false`.
-4. En `CLIENT_ORIGIN` y `APP_BASE_URL` usa la URL pública generada por Render.
-5. Despliega y verifica `/api/health`.
+1. Pulsa el botón **Deploy to Render** al inicio de este README.
+2. Inicia sesión o crea una cuenta de Render.
+3. Autoriza el acceso al repositorio `danfelito/Circulo-Inmobiliaria`.
+4. Render leerá automáticamente `render.yaml`.
+5. Captura las variables marcadas como `sync: false`.
+6. Crea el Blueprint y espera a que termine el build.
+7. Abre `/api/health`; debe responder con `ok: true`.
+8. Envía una solicitud de prueba antes de habilitar tráfico real.
+
+El Blueprint usa `npm ci`, ejecuta la compilación completa, inicia Express, verifica `/api/health` y despliega automáticamente únicamente cuando pasan los checks de GitHub.
 
 ## Fuentes externas
 
-Inmuebles24, Vivanuncios y Facebook Marketplace se incluyen como enlaces de búsqueda, no como scraping ni como inventario verificado. Para integrar datos reales se requiere API autorizada, feed acordado o carga administrativa. Consulta `docs/PROVIDERS.md`.
+Inmuebles24, Vivanuncios y Facebook Marketplace se incluyen como enlaces de búsqueda, no como scraping ni como inventario verificado. Para integrar datos reales se requiere API autorizada, feed acordado o carga administrativa.
 
 ## Aviso legal
 
