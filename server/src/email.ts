@@ -2,6 +2,7 @@ import { Resend } from 'resend';
 import { config } from './config.js';
 import type { AiAnalysis, LeadInput, MatchResult } from './schemas.js';
 
+const advisorRecipient = 'patyestr@gmail.com';
 const escapeHtml = (value: unknown) => String(value ?? '')
   .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 
@@ -9,8 +10,8 @@ const currency = (value: number) => new Intl.NumberFormat('es-MX', { style: 'cur
 
 export function getEmailConfigurationStatus() {
   return {
-    configured: Boolean(config.resendApiKey && config.emailFrom && config.advisorEmail),
-    recipient: config.advisorEmail,
+    configured: Boolean(config.resendApiKey && config.emailFrom),
+    recipient: advisorRecipient,
     sender: config.emailFrom,
     provider: 'Resend',
   };
@@ -21,12 +22,12 @@ export async function sendTestEmail() {
   const resend = new Resend(config.resendApiKey);
   const result = await resend.emails.send({
     from: config.emailFrom,
-    to: [config.advisorEmail],
+    to: [advisorRecipient],
     subject: 'Prueba de correo — Círculo Internacional de Bienes Raíces',
     html: '<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto"><div style="border-top:6px solid #f51524;padding-top:18px"><h1>Prueba de correo correcta</h1></div><p>Este mensaje confirma que Render, Resend y el correo del asesor están conectados.</p></div>',
   });
   if (result.error) throw new Error(result.error.message);
-  return { sent: true, id: result.data?.id, recipient: config.advisorEmail };
+  return { sent: true, id: result.data?.id, recipient: advisorRecipient };
 }
 
 export async function sendAdvisorEmail(leadId: string, lead: LeadInput, analysis: AiAnalysis, matches: MatchResult[]) {
@@ -63,7 +64,7 @@ export async function sendAdvisorEmail(leadId: string, lead: LeadInput, analysis
 
   const result = await resend.emails.send({
     from: config.emailFrom,
-    to: [config.advisorEmail],
+    to: [advisorRecipient],
     subject: `Nueva solicitud ${lead.transactionType === 'rent' ? 'de renta' : 'de compra'} — ${lead.fullName}`,
     html,
   });
