@@ -11,7 +11,7 @@ export const demoProperties: Property[] = [
 
 export const demoProviders: ProviderInput[] = Array.from({ length: 10 }, (_, index) => ({
   id: `source-${index + 1}`,
-  name: index === 0 ? 'Inmuebles24' : index === 1 ? 'Vivanuncios' : index === 2 ? 'Facebook Marketplace' : `Fuente ${index + 1}`,
-  baseUrl: index === 0 ? 'https://www.inmuebles24.com' : index === 1 ? 'https://www.vivanuncios.com.mx' : index === 2 ? 'https://www.facebook.com/marketplace' : '',
-  enabled: index < 3,
+  name: index === 0 ? 'Círculo Internacional' : `Fuente ${index + 1}`,
+  baseUrl: index === 0 ? 'https://circulointernacional.com/home-page/properties/home' : '',
+  enabled: index === 0,
 }));
