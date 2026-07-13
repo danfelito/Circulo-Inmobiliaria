@@ -3,10 +3,15 @@
   .property-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .provider-row { grid-template-columns: 30px 1fr 1fr; }
   .provider-row > :nth-child(n+4) { grid-column: auto; }
+  .brand-lettering strong { letter-spacing: .08em; }
 }
 @media (max-width: 680px) {
-  .site-header { align-items: flex-start; }
+  .site-header { align-items: center; padding-inline: 14px; }
   nav { display: none; }
+  .brand { gap: 9px; }
+  .brand-mark { width: 48px; height: 48px; flex-basis: 48px; }
+  .brand-lettering strong { font-size: 10px; letter-spacing: .08em; }
+  .brand-lettering b { font-size: 18px; margin-top: 5px; }
   .page-shell { width: min(100% - 20px, 1180px); padding-top: 30px; }
   .hero h1 { font-size: 42px; }
   .form-grid, .choice-grid.two, .summary-grid, .property-grid, .checks-grid { grid-template-columns: 1fr; }
@@ -18,7 +23,6 @@
   .provider-row { grid-template-columns: 28px 1fr; }
   .provider-row > *:not(.provider-number) { grid-column: 2; }
 }
-
 .advisor-notice { display: grid; grid-template-columns: auto 1fr; gap: 22px; align-items: start; background: #fff; border: 1px solid var(--line); border-left: 5px solid var(--gold); border-radius: 18px; padding: clamp(24px,4vw,38px); box-shadow: 0 14px 45px rgba(0,0,0,.06); }
 .advisor-notice h2 { margin-top: 4px; }
 .advisor-notice p { color: var(--muted); line-height: 1.7; max-width: 850px; }
@@ -31,4 +35,4 @@
 .privacy-date { margin: 34px 0; padding: 18px; background: var(--gold-soft); border-left: 4px solid var(--gold); color: #111 !important; }
 .provider-row.sources-only { grid-template-columns: 38px 1fr 2fr 100px; }
 .admin-save { display: flex; justify-content: flex-end; gap: 12px; position: sticky; bottom: 16px; margin-top: 24px; padding: 16px; background: rgba(255,255,255,.95); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 34px rgba(0,0,0,.1); backdrop-filter: blur(10px); }
-@media (max-width: 680px) { .brand img { width: 230px; max-height: 54px; } .advisor-notice { grid-template-columns: 1fr; } .provider-row.sources-only { grid-template-columns: 28px 1fr; } .provider-row.sources-only > *:not(.provider-number) { grid-column: 2; } .admin-save { flex-direction: column; } }
+@media (max-width: 680px) { .advisor-notice { grid-template-columns: 1fr; } .provider-row.sources-only { grid-template-columns: 28px 1fr; } .provider-row.sources-only > *:not(.provider-number) { grid-column: 2; } .admin-save { flex-direction: column; } }
