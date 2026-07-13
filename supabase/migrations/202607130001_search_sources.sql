@@ -1,8 +1,8 @@
 -- Diez fuentes configurables de búsqueda privada.
 insert into public.providers (id, position, name, base_url, integration_type, enabled) values
-  ('source-1', 1, 'Inmuebles24', 'https://www.inmuebles24.com', 'search_link', true),
-  ('source-2', 2, 'Vivanuncios', 'https://www.vivanuncios.com.mx', 'search_link', true),
-  ('source-3', 3, 'Facebook Marketplace', 'https://www.facebook.com/marketplace', 'search_link', true),
+  ('source-1', 1, 'Círculo Internacional', 'https://circulointernacional.com/home-page/properties/home', 'search_link', true),
+  ('source-2', 2, 'Fuente 2', '', 'search_link', false),
+  ('source-3', 3, 'Fuente 3', '', 'search_link', false),
   ('source-4', 4, 'Fuente 4', '', 'search_link', false),
   ('source-5', 5, 'Fuente 5', '', 'search_link', false),
   ('source-6', 6, 'Fuente 6', '', 'search_link', false),
