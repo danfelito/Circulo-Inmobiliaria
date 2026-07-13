@@ -20,11 +20,14 @@ body { margin: 0; min-width: 320px; min-height: 100vh; background: radial-gradie
 a { color: inherit; }
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
-.site-header { min-height: 78px; display: flex; align-items: center; justify-content: space-between; gap: 28px; padding: 14px clamp(20px, 5vw, 72px); background: rgba(255,255,255,.94); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 20; backdrop-filter: blur(12px); }
-.brand { display: inline-flex; align-items: center; text-decoration: none; }
-.brand img { display: block; width: clamp(230px, 28vw, 430px); height: auto; max-height: 64px; object-fit: contain; object-position: left center; }
+.site-header { min-height: 92px; display: flex; align-items: center; justify-content: space-between; gap: 28px; padding: 12px clamp(20px, 5vw, 72px); background: rgba(255,255,255,.97); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 20; backdrop-filter: blur(12px); }
+.brand { display: inline-flex; align-items: center; gap: 14px; text-decoration: none; min-width: 0; }
+.brand-mark { width: 66px; height: 66px; flex: 0 0 66px; object-fit: contain; }
+.brand-lettering { display: flex; flex-direction: column; line-height: 1; letter-spacing: .03em; }
+.brand-lettering strong { color: var(--gold); font-size: clamp(13px, 1.35vw, 21px); font-weight: 500; letter-spacing: .14em; white-space: nowrap; }
+.brand-lettering b { color: #111; font-size: clamp(22px, 2.25vw, 36px); font-weight: 800; letter-spacing: .035em; margin-top: 7px; white-space: nowrap; }
 nav { display: flex; gap: 22px; font-size: 14px; }
 nav a { text-decoration: none; color: var(--muted); }
 nav a:hover { color: var(--navy); }
-main { min-height: calc(100vh - 150px); }
+main { min-height: calc(100vh - 164px); }
 footer { display: flex; justify-content: space-between; gap: 20px; padding: 26px clamp(20px, 5vw, 72px); color: var(--muted); font-size: 12px; border-top: 1px solid var(--line); background: #fff; }
