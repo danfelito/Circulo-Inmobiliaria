@@ -1,81 +1,45 @@
+import { Controller, type UseFormReturn } from 'react-hook-form';
 import { Link } from 'react-router-dom';
-import type { UseFormReturn } from 'react-hook-form';
 import type { LeadForm, TransactionType } from './types';
 import { Choice, Field, Summary, Toggle } from './FormParts';
 import { money } from './formConfig';
 
+const formatCurrency = (value: number | string | undefined) => {
+  const numeric = Number(String(value ?? '').replace(/[^\d]/g, '')) || 0;
+  return `$ ${new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 }).format(numeric)}`;
+};
+
+function CurrencyField({ form, name, label, error, min = 0 }: { form: UseFormReturn<LeadForm>; name: 'budgetMin' | 'budgetMax'; label: string; error?: string; min?: number }) {
+  return <Field label={label} error={error}><Controller control={form.control} name={name} render={({ field }) => <input inputMode="numeric" value={formatCurrency(field.value)} onChange={(event) => field.onChange(Math.max(min, Number(event.target.value.replace(/[^\d]/g, '')) || 0))} onBlur={field.onBlur} aria-label={label} />} /></Field>;
+}
+
 export function StepMode({ value, onChange }: { value: TransactionType; onChange: (value: TransactionType) => void }) {
-  return <div><span className="section-kicker">Comencemos</span><h2>¿Qué operación deseas realizar?</h2><p className="muted">Puedes cambiar esta selección antes de enviar tu solicitud.</p>
-    <div className="choice-grid two"><Choice active={value === 'rent'} title="Quiero rentar" text="Casa o departamento para habitar." onClick={() => onChange('rent')} />
-    <Choice active={value === 'buy'} title="Quiero comprar" text="Casa, departamento o terreno." onClick={() => onChange('buy')} /></div></div>;
+  return <div><span className="section-kicker">Comencemos</span><h2>¿Qué operación deseas realizar?</h2><p className="muted">Puedes cambiar esta selección antes de enviar tu solicitud.</p><div className="choice-grid two"><Choice active={value === 'rent'} title="Quiero rentar" text="Casa, departamento, local, oficina, bodega o rancho." onClick={() => onChange('rent')} /><Choice active={value === 'buy'} title="Quiero comprar" text="Casa, departamento, terreno, local, oficina, bodega o rancho." onClick={() => onChange('buy')} /></div></div>;
 }
 
 export function StepContact({ form }: { form: UseFormReturn<LeadForm> }) {
   const { register, formState: { errors } } = form;
-  return <div><span className="section-kicker">Datos de contacto</span><h2>¿Con quién trabajaremos esta búsqueda?</h2><div className="form-grid">
-    <Field label="Nombre completo" error={errors.fullName?.message}><input {...register('fullName')} autoComplete="name" /></Field>
-    <Field label="Correo electrónico" error={errors.email?.message}><input {...register('email')} type="email" autoComplete="email" /></Field>
-    <Field label="Teléfono o WhatsApp" error={errors.phone?.message}><input {...register('phone')} autoComplete="tel" /></Field>
-  </div><input className="honeypot" tabIndex={-1} autoComplete="off" {...register('website')} /></div>;
+  return <div><span className="section-kicker">Datos de contacto</span><h2>¿Con quién trabajaremos esta búsqueda?</h2><div className="form-grid"><Field label="Nombre completo" error={errors.fullName?.message}><input {...register('fullName')} autoComplete="name" /></Field><Field label="Correo electrónico" error={errors.email?.message}><input {...register('email')} type="email" autoComplete="email" /></Field><Field label="Teléfono o WhatsApp" error={errors.phone?.message}><input {...register('phone')} autoComplete="tel" /></Field></div><input className="honeypot" tabIndex={-1} autoComplete="off" {...register('website')} /></div>;
 }
 
 export function StepProperty({ form, type, propertyType, hasPets, payment }: { form: UseFormReturn<LeadForm>; type: TransactionType; propertyType: string; hasPets: boolean; payment?: string }) {
   const { register, formState: { errors } } = form;
   const amenities = ['Seguridad', 'Gimnasio', 'Elevador', 'Casa club', 'Vista al mar', 'Área social'];
+  const residential = ['house', 'apartment'].includes(propertyType);
   return <div><span className="section-kicker">Características</span><h2>Define las necesidades principales</h2>
-    {type === 'rent' ? <div className="form-grid">
-      <Field label="Número de inquilinos"><input type="number" min="1" {...register('tenants')} /></Field>
-      <Field label="Fecha de inicio" error={errors.moveInDate?.message}><input type="date" {...register('moveInDate')} /></Field>
-      <Field label="Duración del contrato (meses)" error={errors.contractMonths?.message}><input type="number" min="1" {...register('contractMonths')} /></Field>
-      <Field label="Mobiliario"><select {...register('furnished')}><option value="indifferent">Indistinto</option><option value="furnished">Amueblado</option><option value="semi">Semiamueblado</option><option value="unfurnished">Sin muebles</option></select></Field>
-      <Toggle label="Tengo mascotas" {...register('hasPets')} />
-      {hasPets && <Field label="Raza, cantidad y tamaño" error={errors.petDetails?.message}><input {...register('petDetails')} /></Field>}
-      <Field label="Garantía disponible"><select {...register('guarantee')}><option value="guarantor">Aval</option><option value="legal_policy">Póliza jurídica</option><option value="deposit">Depósito</option><option value="advice">Necesito asesoría</option></select></Field>
-      <Toggle label="Requiero facturación" {...register('invoiceRequired')} />
-    </div> : <div className="form-grid">
-      <Field label="Disponibilidad"><select {...register('delivery')}><option value="indifferent">Indistinto</option><option value="presale">Preventa</option><option value="immediate">Entrega inmediata</option></select></Field>
-      <Field label="Forma de pago" error={errors.paymentMethod?.message}><select {...register('paymentMethod')}><option value="credit">Crédito</option><option value="cash">Contado</option><option value="mixed">Combinación</option></select></Field>
-      {payment !== 'cash' && <><Toggle label="Crédito preaprobado" {...register('creditPreapproved')} /><Field label="Monto estimado del crédito"><input type="number" min="0" {...register('creditAmount')} /></Field></>}
-    </div>}
-    <hr/>
-    <div className="form-grid">
-      <Field label="Tipo de inmueble"><select {...register('propertyType')}><option value="house">Casa</option><option value="apartment">Departamento</option>{type === 'buy' && <option value="land">Terreno</option>}</select></Field>
-      <Field label="Número de plantas"><select {...register('floors')}><option value="indifferent">Indistinto</option><option value="1">Una</option><option value="2">Dos</option><option value="3">Tres</option></select></Field>
-      {propertyType !== 'land' && <><Field label="Recámaras mínimas"><input type="number" min="0" {...register('bedrooms')} /></Field><Field label="Baños mínimos"><input type="number" step="0.5" min="0" {...register('bathrooms')} /></Field><Field label="Estacionamientos"><input type="number" min="0" {...register('parking')} /></Field></>}
-      <Field label="Metraje mínimo de terreno"><input type="number" min="0" {...register('landAreaMin')} /></Field>
-      {propertyType !== 'land' && <Field label="Metraje mínimo de construcción"><input type="number" min="0" {...register('constructionAreaMin')} /></Field>}
-    </div>
-    <div className="checks-row"><Toggle label="Patio" {...register('yard')} /><Toggle label="Jardín" {...register('garden')} /><Toggle label="Alberca" {...register('pool')} /></div>
-    <fieldset><legend>Amenidades deseadas</legend><div className="checks-grid">{amenities.map((item) => <label className="check" key={item}><input type="checkbox" value={item.toLowerCase()} {...register('amenities')} /><span>{item}</span></label>)}</div></fieldset>
+    {type === 'rent' ? <div className="form-grid"><Field label="Número de inquilinos"><input type="number" min="1" {...register('tenants')} /></Field><Field label="Fecha de inicio" error={errors.moveInDate?.message}><input type="date" {...register('moveInDate')} /></Field><Field label="Duración del contrato (meses)" error={errors.contractMonths?.message}><input type="number" min="1" {...register('contractMonths')} /></Field><Field label="Mobiliario"><select {...register('furnished')}><option value="indifferent">Indistinto</option><option value="furnished">Amueblado</option><option value="semi">Semiamueblado</option><option value="unfurnished">Sin muebles</option></select></Field><Toggle label="Tengo mascotas" {...register('hasPets')} />{hasPets && <Field label="Raza, cantidad y tamaño" error={errors.petDetails?.message}><input {...register('petDetails')} /></Field>}<Field label="Garantía disponible"><select {...register('guarantee')}><option value="guarantor">Aval</option><option value="legal_policy">Póliza jurídica</option><option value="deposit">Depósito</option><option value="advice">Necesito asesoría</option></select></Field><Toggle label="Requiero facturación" {...register('invoiceRequired')} /></div> : <div className="form-grid"><Field label="Disponibilidad"><select {...register('delivery')}><option value="indifferent">Indistinto</option><option value="presale">Preventa</option><option value="immediate">Entrega inmediata</option></select></Field><Field label="Forma de pago" error={errors.paymentMethod?.message}><select {...register('paymentMethod')}><option value="credit">Crédito</option><option value="cash">Contado</option><option value="mixed">Combinación</option></select></Field>{payment !== 'cash' && <><Toggle label="Crédito preaprobado" {...register('creditPreapproved')} /><Field label="Monto estimado del crédito"><input type="number" min="0" {...register('creditAmount')} /></Field></>}</div>}
+    <hr/><div className="form-grid"><Field label="Tipo de inmueble"><select {...register('propertyType')}><option value="house">Casa</option><option value="apartment">Departamento</option>{type === 'buy' && <option value="land">Terreno</option>}<option value="retail">Local</option><option value="office">Oficina</option><option value="warehouse">Bodega</option><option value="ranch">Rancho</option></select></Field><Field label="Número de plantas"><select {...register('floors')}><option value="indifferent">Indistinto</option><option value="1">Una</option><option value="2">Dos</option><option value="3">Tres</option></select></Field>{residential && <><Field label="Recámaras mínimas"><input type="number" min="0" {...register('bedrooms')} /></Field><Field label="Baños mínimos"><input type="number" step="0.5" min="0" {...register('bathrooms')} /></Field><Field label="Estacionamientos"><input type="number" min="0" {...register('parking')} /></Field></>}<Field label="Metraje mínimo de terreno"><input type="number" min="0" {...register('landAreaMin')} /></Field>{propertyType !== 'land' && <Field label="Metraje mínimo de construcción"><input type="number" min="0" {...register('constructionAreaMin')} /></Field>}</div>
+    <div className="checks-row"><Toggle label="Patio" {...register('yard')} /><Toggle label="Jardín" {...register('garden')} /><Toggle label="Alberca" {...register('pool')} /></div><fieldset><legend>Amenidades deseadas</legend><div className="checks-grid">{amenities.map((item) => <label className="check" key={item}><input type="checkbox" value={item.toLowerCase()} {...register('amenities')} /><span>{item}</span></label>)}</div></fieldset>
   </div>;
 }
 
 export function StepLocation({ form, type }: { form: UseFormReturn<LeadForm>; type: TransactionType }) {
   const { register, formState: { errors } } = form;
-  return <div><span className="section-kicker">Zona y presupuesto</span><h2>Acotemos el área de búsqueda</h2><div className="form-grid">
-    <Field label="Ciudad o municipio" error={errors.city?.message}><input {...register('city')} placeholder="Ej. Boca del Río" /></Field>
-    <Field label="Colonia o barrio 1"><input {...register('neighborhood1')} /></Field><Field label="Colonia o barrio 2"><input {...register('neighborhood2')} /></Field><Field label="Colonia o barrio 3"><input {...register('neighborhood3')} /></Field>
-    <Field label={`Presupuesto mínimo ${type === 'rent' ? 'mensual' : ''} (MXN)`}><input type="number" min="0" {...register('budgetMin')} /></Field>
-    <Field label={`Presupuesto máximo ${type === 'rent' ? 'mensual' : ''} (MXN)`} error={errors.budgetMax?.message}><input type="number" min="1" {...register('budgetMax')} /></Field>
-  </div><div className="form-grid two-cols">
-    <Field label="Características indispensables" hint="Separa cada característica con coma o en una línea nueva."><textarea rows={4} {...register('essentialText')} placeholder="Ej. estudio, acceso sin escaleras" /></Field>
-    <Field label="Características deseables"><textarea rows={4} {...register('desirableText')} placeholder="Ej. terraza, vista abierta" /></Field>
-    <Field label="Comentarios adicionales"><textarea rows={4} {...register('comments')} /></Field>
-  </div></div>;
+  return <div><span className="section-kicker">Zona y presupuesto</span><h2>Acotemos el área de búsqueda</h2><div className="form-grid"><Field label="Ciudad o municipio" error={errors.city?.message}><input {...register('city')} placeholder="Ej. Boca del Río" /></Field><Field label="Colonia o barrio 1"><input {...register('neighborhood1')} /></Field><Field label="Colonia o barrio 2"><input {...register('neighborhood2')} /></Field><Field label="Colonia o barrio 3"><input {...register('neighborhood3')} /></Field><CurrencyField form={form} name="budgetMin" label={`Presupuesto mínimo ${type === 'rent' ? 'mensual' : ''} (MXN)`} /><CurrencyField form={form} name="budgetMax" label={`Presupuesto máximo ${type === 'rent' ? 'mensual' : ''} (MXN)`} error={errors.budgetMax?.message} min={1} /></div><div className="form-grid two-cols"><Field label="Características indispensables" hint="Separa cada característica con coma o en una línea nueva."><textarea rows={4} {...register('essentialText')} placeholder="Ej. estudio, acceso sin escaleras" /></Field><Field label="Características deseables"><textarea rows={4} {...register('desirableText')} placeholder="Ej. terraza, vista abierta" /></Field><Field label="Comentarios adicionales"><textarea rows={4} {...register('comments')} /></Field></div></div>;
 }
 
-const labelProperty = (value: string) => ({ house: 'Casa', apartment: 'Departamento', land: 'Terreno' }[value] || value);
-
+const labelProperty = (value: string) => ({ house: 'Casa', apartment: 'Departamento', land: 'Terreno', retail: 'Local', office: 'Oficina', warehouse: 'Bodega', ranch: 'Rancho' }[value] || value);
 export function StepReview({ form, type }: { form: UseFormReturn<LeadForm>; type: TransactionType }) {
   const values = form.getValues(); const errors = form.formState.errors;
-  return <div><span className="section-kicker">Revisión final</span><h2>Confirma tu solicitud</h2>
-    <div className="summary-grid"><Summary title="Operación" value={type === 'rent' ? 'Renta' : 'Compra'} /><Summary title="Inmueble" value={`${labelProperty(values.propertyType)} · ${values.bedrooms} recámara(s)`} /><Summary title="Ubicación" value={`${values.city || 'Sin definir'} · ${[values.neighborhood1, values.neighborhood2, values.neighborhood3].filter(Boolean).join(', ') || 'zona abierta'}`} /><Summary title="Presupuesto máximo" value={money.format(values.budgetMax || 0)} /></div>
-    <div className="consent-box">
-      <label className="check consent"><input type="checkbox" {...form.register('privacyAccepted')} /><span>Acepto el <Link to="/privacidad" target="_blank">Aviso de Privacidad</Link> y los <Link to="/terminos" target="_blank">Términos del Servicio</Link>.</span></label>
-      {errors.privacyAccepted?.message && <em>{errors.privacyAccepted.message}</em>}
-      <label className="check consent"><input type="checkbox" {...form.register('contactAccepted')} /><span>Autorizo que el asesor me contacte por correo, teléfono o WhatsApp para atender esta solicitud.</span></label>
-      {errors.contactAccepted?.message && <em>{errors.contactAccepted.message}</em>}
-    </div>
-    <div className="notice"><strong>Antes de buscar</strong><p>El sistema analiza las fuentes configuradas y puede utilizar inteligencia artificial para explicar la viabilidad. No garantiza inventario, precio ni disponibilidad.</p></div>
-  </div>;
+  return <div><span className="section-kicker">Revisión final</span><h2>Confirma tu solicitud</h2><div className="summary-grid"><Summary title="Operación" value={type === 'rent' ? 'Renta' : 'Compra'} /><Summary title="Inmueble" value={`${labelProperty(values.propertyType)} · ${values.bedrooms} recámara(s)`} /><Summary title="Ubicación" value={`${values.city || 'Sin definir'} · ${[values.neighborhood1, values.neighborhood2, values.neighborhood3].filter(Boolean).join(', ') || 'zona abierta'}`} /><Summary title="Presupuesto máximo" value={money.format(values.budgetMax || 0)} /></div><div className="consent-box"><label className="check consent"><input type="checkbox" {...form.register('privacyAccepted')} /><span>Acepto el <Link to="/privacidad" target="_blank">Aviso de Privacidad</Link> y los <Link to="/terminos" target="_blank">Términos del Servicio</Link>.</span></label>{errors.privacyAccepted?.message && <em>{errors.privacyAccepted.message}</em>}<label className="check consent"><input type="checkbox" {...form.register('contactAccepted')} /><span>Autorizo que el asesor me contacte por correo, teléfono o WhatsApp para atender esta solicitud.</span></label>{errors.contactAccepted?.message && <em>{errors.contactAccepted.message}</em>}</div><div className="notice"><strong>Antes de buscar</strong><p>El sistema analiza las fuentes configuradas y puede utilizar inteligencia artificial para explicar la viabilidad. No garantiza inventario, precio ni disponibilidad.</p></div></div>;
 }
