@@ -12,7 +12,7 @@ const webListingSchema = z.object({
     url: z.string().url(),
     price: z.number().positive(),
     transactionType: z.enum(['rent', 'buy']),
-    propertyType: z.enum(['house', 'apartment', 'land']),
+    propertyType: z.enum(['house', 'apartment', 'land', 'retail', 'office', 'warehouse', 'ranch']),
     city: z.string().min(2).max(120),
     neighborhood: z.string().max(120).default(''),
     bedrooms: z.number().min(0).max(30).default(0),
@@ -66,11 +66,11 @@ async function searchConfiguredSources(lead: LeadInput, providers: ProviderInput
 
   try {
     const response = await client.responses.parse({
-      model: config.openaiModel,
+      model: 'gpt-5.6-luna',
       store: false,
       reasoning: { effort: 'low' },
-      tools: [{ type: 'web_search', search_context_size: 'medium', filters: { allowed_domains: domains } }],
-      tool_choice: 'auto',
+      tools: [{ type: 'web_search', search_context_size: 'low', filters: { allowed_domains: domains } }],
+      tool_choice: 'required',
       input: [
         {
           role: 'system',
