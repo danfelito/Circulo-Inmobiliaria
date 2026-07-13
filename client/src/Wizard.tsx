@@ -26,18 +26,8 @@ export function Wizard() {
     return () => subscription.unsubscribe();
   }, [form]);
 
-  useEffect(() => {
-    if (type === 'rent' && propertyType === 'land') form.setValue('propertyType', 'house');
-  }, [form, propertyType, type]);
-
   const next = async () => {
-    const groups: (keyof LeadForm)[][] = [
-      [],
-      ['fullName', 'email', 'phone'],
-      type === 'rent' ? ['tenants', 'moveInDate', 'contractMonths', 'propertyType', 'bedrooms'] : ['paymentMethod', 'propertyType', 'bedrooms'],
-      ['city', 'budgetMax'],
-      ['privacyAccepted', 'contactAccepted'],
-    ];
+    const groups: (keyof LeadForm)[][] = [[], ['fullName', 'email', 'phone'], type === 'rent' ? ['tenants', 'moveInDate', 'contractMonths', 'propertyType', 'bedrooms'] : ['paymentMethod', 'propertyType', 'bedrooms'], ['city', 'budgetMax'], ['privacyAccepted', 'contactAccepted']];
     if (step === 0 || await form.trigger(groups[step])) setStep((current) => Math.min(4, current + 1));
   };
 
@@ -48,15 +38,12 @@ export function Wizard() {
       if (!key) { key = crypto.randomUUID(); localStorage.setItem(idempotencyStorageKey, key); }
       setResult(await submitLead(values, key));
       window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'No fue posible analizar la solicitud.');
-    } finally { setBusy(false); }
+    } catch (error) { setSubmitError(error instanceof Error ? error.message : 'No fue posible analizar la solicitud.'); }
+    finally { setBusy(false); }
   });
 
   const resetSearch = () => { localStorage.removeItem(idempotencyStorageKey); setResult(null); setStep(1); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-  const newSearch = () => {
-    localStorage.removeItem(draftKey); localStorage.removeItem(idempotencyStorageKey); form.reset(defaults); setResult(null); setStep(0);
-  };
+  const newSearch = () => { localStorage.removeItem(draftKey); localStorage.removeItem(idempotencyStorageKey); form.reset(defaults); setResult(null); setStep(0); };
   const applySuggestion = (suggestion: string) => {
     const text = suggestion.toLowerCase();
     if (text.includes('presupuesto')) form.setValue('budgetMax', Math.round(form.getValues('budgetMax') * 1.15));
@@ -71,9 +58,9 @@ export function Wizard() {
 
   return <div className="page-shell">
     <section className="hero">
-      <div><span className="eyebrow">Asesoría inmobiliaria guiada</span><h1>Encuentra opciones que realmente se ajusten al mercado.</h1>
-      <p>Cuéntanos qué buscas. Compararemos tus criterios con las fuentes configuradas y te explicaremos dónde existen coincidencias o qué conviene ajustar.</p></div>
-      <div className="trust-card"><strong>Un proceso claro, un solo canal</strong><p>Al utilizar el servicio decides trabajar coordinadamente con nuestro equipo y dar preferencia al acompañamiento profesional. Esto evita búsquedas redundantes, reduce confusiones y nos permite evaluar contigo la mejor inversión. No constituye exclusividad contractual.</p></div>
+      <div><span className="eyebrow">Asesoría inmobiliaria guiada</span><h1>Encuentra la mejor opción que se ajuste a tus necesidades</h1>
+      <p>Cuéntanos qué necesitas. Compararemos tus criterios de búsqueda con la disponibilidad del mercado.</p></div>
+      <div className="trust-card"><strong>Un proceso claro, un solo canal</strong><p>Al utilizar nuestro servicio aceptas trabajar coordinadamente con nosotros y dar preferencia a nuestro acompañamiento profesional. Con esto evitamos búsquedas redundantes, reducimos confusiones y podemos evaluar la mejor opción de inversión.</p></div>
     </section>
 
     <section className="wizard-card">
