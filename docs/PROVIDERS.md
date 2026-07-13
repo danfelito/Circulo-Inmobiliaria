@@ -1,21 +1,14 @@
-# Proveedores y fuentes inmobiliarias
+# Fuentes inmobiliarias
 
-La aplicación no incluye robots para saltar autenticación, CAPTCHA, bloqueos o restricciones de portales. Cada fuente se configura con uno de estos modos:
+El panel administrativo permite configurar exactamente diez fuentes mediante nombre, liga y estado activo/inactivo.
 
-- `authorized_api`: API oficial o contrato de integración.
-- `csv_feed`: archivo o feed CSV autorizado.
-- `json_feed`: archivo o feed JSON autorizado.
-- `search_link`: enlace externo que abre una búsqueda; no se considera resultado verificado.
-- `manual`: captura o importación administrada por el asesor.
+## Uso
 
-## Los 14 espacios iniciales
+- La liga se convierte en un dominio permitido para la herramienta de búsqueda web.
+- La búsqueda se ejecuta en el servidor.
+- Las propiedades encontradas y sus ligas se envían únicamente al asesor.
+- El cliente no recibe enlaces directos a portales.
 
-Los primeros cuatro corresponden a Círculo Internacional de Bienes Raíces, Inmuebles24, Vivanuncios y Facebook Marketplace. Los otros diez espacios pueden editarse desde `/admin`.
+## Restricciones
 
-## Importación
-
-El panel acepta CSV y JSON. Los campos reconocidos son:
-
-`id`, `title`, `transaction_type` o `transactionType`, `property_type` o `propertyType`, `city`, `neighborhood`, `price`, `bedrooms`, `bathrooms`, `parking`, `land_area` o `landArea`, `construction_area` o `constructionArea`, `floors`, `yard`, `garden`, `pool`, `amenities`, `source_name` o `sourceName`, `source_url` o `sourceUrl`, `verified_at` y `demo`.
-
-En CSV, `amenities` puede separarse con `|`, coma o punto y coma.
+No se incluyen robots para saltar autenticación, CAPTCHA, bloqueos o condiciones de uso. Use únicamente portales, APIs, feeds o páginas cuyo acceso esté autorizado.

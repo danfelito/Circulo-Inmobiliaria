@@ -1,0 +1,48 @@
+.result-hero { background: #111; border-top: 6px solid var(--gold); color: #fff; padding: clamp(28px,6vw,64px); border-radius: 24px; margin-bottom: 42px; }
+.result-hero h1 { color: white; font-size: clamp(36px,5vw,58px); }
+.result-hero p { color: rgba(255,255,255,.75); }
+.metrics { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+.metrics span { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); border-radius: 12px; padding: 12px 16px; font-size: 12px; }
+.metrics b { display: block; font-size: 18px; margin-bottom: 3px; }
+.section-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin: 32px 0 22px; }
+.section-heading p { color: var(--muted); }
+.property-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 18px; }
+.property-card { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 22px; box-shadow: 0 10px 32px rgba(28,40,63,.05); }
+.property-top { display: flex; justify-content: space-between; align-items: center; }
+.score { display: inline-grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; background: var(--gold-soft); color: #725a2d; font-weight: 800; }
+.demo-badge { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+.property-card h3 { margin: 18px 0 5px; font-family: Georgia, serif; font-size: 24px; font-weight: 500; }
+.location, .availability { color: var(--muted); font-size: 13px; }
+.price { display: block; color: var(--navy); font-size: 22px; margin: 18px 0; }
+.facts { display: flex; gap: 8px; flex-wrap: wrap; }
+.facts span { background: #f2f4f7; padding: 6px 8px; border-radius: 6px; font-size: 11px; }
+.reason-list { padding-left: 18px; min-height: 72px; color: var(--success); font-size: 12px; line-height: 1.6; }
+.no-results { padding: 30px; border: 1px solid #e6d9bd; background: #fffaf0; border-radius: 18px; }
+.no-results p, .no-results li { color: var(--muted); line-height: 1.6; }
+.alternatives { display: grid; grid-template-columns: .75fr 1.25fr; gap: 26px; margin: 48px 0; }
+.alternative-list { display: grid; gap: 10px; }
+.alternative-list button { background: white; border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; justify-content: space-between; gap: 20px; text-align: left; color: var(--ink); }
+.alternative-list button:hover { border-color: var(--gold); }
+.alternative-list b { color: var(--gold); }
+.external { border-top: 1px solid var(--line); padding-top: 30px; }
+.external p { color: var(--muted); }
+.source-links { display: flex; flex-wrap: wrap; gap: 10px; }
+.source-links a { background: #fff; border: 1px solid var(--line); padding: 10px 14px; border-radius: 8px; text-decoration: none; font-size: 13px; }
+.final-message { margin-top: 36px; padding: 28px; border-radius: 18px; background: #111; border-top: 5px solid var(--gold); color: #fff; }
+.final-message strong { font-family: Georgia, serif; font-size: 25px; font-weight: 500; }
+.final-message p { color: rgba(255,255,255,.7); font-size: 13px; }
+.final-message > div { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.final-message .button.ghost { color: white; border-color: rgba(255,255,255,.35); background: transparent; }
+.legal { max-width: 850px; }
+.legal h1 { font-size: 56px; }
+.legal h2 { font-size: 28px; margin-top: 30px; }
+.legal p { color: var(--muted); line-height: 1.75; }
+.admin-login { min-height: 650px; }
+.admin .section-heading h1 { font-size: 46px; margin: 6px 0 0; }
+.upload input { display: none; }
+.provider-list { display: grid; gap: 10px; }
+.provider-row { display: grid; grid-template-columns: 34px 1.2fr 1.5fr .85fr 85px 78px; gap: 10px; align-items: center; background: white; padding: 12px; border: 1px solid var(--line); border-radius: 12px; }
+.provider-number { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: #f1f3f6; font-size: 11px; }
+.provider-row input, .provider-row select { padding: 9px 10px; font-size: 12px; }
+.mini-toggle { font-size: 11px; display: flex; gap: 5px; align-items: center; }
+.mini-toggle input { accent-color: var(--navy); }

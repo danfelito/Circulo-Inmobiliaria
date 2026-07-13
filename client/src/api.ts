@@ -9,7 +9,11 @@ export async function submitLead(form: LeadForm, idempotencyKey: string): Promis
     essentialFeatures: splitFeatures(form.essentialText),
     desirableFeatures: splitFeatures(form.desirableText),
   };
-  const response = await fetch('/api/leads', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey }, body: JSON.stringify(payload) });
+  const response = await fetch('/api/leads', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify(payload),
+  });
   const data = await response.json();
   if (!response.ok) {
     const fieldErrors = data?.issues?.fieldErrors as Record<string, string[]> | undefined;

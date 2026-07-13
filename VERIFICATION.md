@@ -1,6 +1,6 @@
 # Verificación técnica
 
-Fecha de verificación: 12 de julio de 2026.
+Fecha: 13 de julio de 2026.
 
 Comandos ejecutados correctamente:
 
@@ -9,17 +9,15 @@ npm run typecheck
 npm test
 npm run lint
 npm run build
-npm start
 ```
 
 Resultados:
 
-- TypeScript: sin errores en cliente y servidor.
-- Pruebas: 6 aprobadas en 3 archivos.
-- ESLint: sin errores ni advertencias.
-- Compilación Vite y servidor TypeScript: correcta.
-- `GET /api/health`: respuesta `200` en modo demo.
-- `POST /api/leads`: respuesta correcta con coincidencia, alternativas y enlaces externos.
-- Idempotencia: la misma llave devuelve el mismo lead y marca la respuesta como duplicada.
-
-La integración real con Supabase, Resend y OpenAI requiere configurar las variables de entorno en Render.
+- TypeScript sin errores en cliente y servidor.
+- 6 pruebas aprobadas.
+- ESLint sin errores ni advertencias.
+- Compilación de producción correcta.
+- Inicio de sesión administrativo validado.
+- Guardado de exactamente 10 fuentes validado.
+- La respuesta pública no contiene ligas ni propiedades.
+- El correo del asesor incluye las opciones localizadas cuando Resend está configurado.
