@@ -7,7 +7,7 @@ services:
     buildCommand: npm ci && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
-    autoDeployTrigger: checksPass
+    autoDeployTrigger: commit
     envVars:
       - key: NODE_VERSION
         value: 22
@@ -29,7 +29,3 @@ services:
         sync: false
       - key: ADVISOR_EMAIL
         value: patyestr@hotmail.com
-      - key: ADMIN_PASSWORD_HASH
-        sync: false
-      - key: SESSION_SECRET
-        generateValue: true
