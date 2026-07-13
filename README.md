@@ -98,30 +98,13 @@ npm start
 
 Endpoint de salud: `GET /api/health`.
 
-## Subir a GitHub
-
-```bash
-git init
-git add .
-git commit -m "feat: aplicación inmobiliaria inicial"
-git branch -M main
-git remote add origin https://github.com/TU_USUARIO/circulo-inmobiliario.git
-git push -u origin main
-```
-
-El workflow `.github/workflows/ci.yml` ejecuta tipos, pruebas, lint y build.
-
 ## Desplegar en Render
 
-1. Sube el repositorio a GitHub.
-2. En Render selecciona **New > Blueprint**.
-3. Elige el repositorio; Render leerá `render.yaml`.
-4. Captura las variables marcadas como `sync: false`.
-5. En `CLIENT_ORIGIN` y `APP_BASE_URL` usa la URL pública generada por Render.
-6. Despliega y verifica `/api/health`.
-7. Prueba una solicitud demo antes de habilitar tráfico real.
-
-El Blueprint compila cliente y servidor, inicia Express y sirve el frontend desde el mismo dominio.
+1. En Render selecciona **New > Blueprint**.
+2. Elige este repositorio; Render leerá `render.yaml`.
+3. Captura las variables marcadas como `sync: false`.
+4. En `CLIENT_ORIGIN` y `APP_BASE_URL` usa la URL pública generada por Render.
+5. Despliega y verifica `/api/health`.
 
 ## Fuentes externas
 

@@ -1,0 +1,1 @@
+[{"id":"sample-json-1","title":"Departamento de muestra","transactionType":"rent","propertyType":"apartment","city":"Boca del Río","neighborhood":"Costa Verde","price":18000,"bedrooms":2,"bathrooms":2,"parking":1,"constructionArea":95,"pool":true,"amenities":["elevador","seguridad"],"sourceName":"Carga JSON","sourceUrl":"https://example.com","demo":false}]

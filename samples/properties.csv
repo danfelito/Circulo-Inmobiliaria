@@ -1,0 +1,2 @@
+id,title,transaction_type,property_type,city,neighborhood,price,bedrooms,bathrooms,parking,land_area,construction_area,yard,garden,pool,amenities,source_name,source_url,demo
+sample-1,Casa de muestra,buy,house,Boca del Río,Virginia,2500000,3,2.5,2,180,210,true,false,false,"seguridad|estudio",Carga CSV,https://example.com,false
