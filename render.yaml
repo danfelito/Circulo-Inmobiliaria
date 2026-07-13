@@ -31,3 +31,9 @@ services:
         sync: false
       - key: ADVISOR_EMAIL
         value: patyestr@hotmail.com
+      - key: ADMIN_LOGIN
+        value: circulointernacionalveracruz1
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
