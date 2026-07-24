@@ -29,5 +29,8 @@ button { cursor: pointer; }
 nav { display: flex; gap: 22px; font-size: 14px; }
 nav a { text-decoration: none; color: var(--muted); }
 nav a:hover { color: var(--navy); }
+.sibling-site-link { color: var(--gold); font-weight: 800; }
 main { min-height: calc(100vh - 164px); }
 footer { display: flex; justify-content: space-between; gap: 20px; padding: 26px clamp(20px, 5vw, 72px); color: var(--muted); font-size: 12px; border-top: 1px solid var(--line); background: #fff; }
+.footer-site-link { color: var(--gold); font-weight: 800; text-decoration: none; }
+.footer-site-link:hover { text-decoration: underline; }
