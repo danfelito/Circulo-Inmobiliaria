@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { Provider } from './types';
+import type { Provider, ProviderCheck } from './types';
 import { Field } from './FormParts';
 
 type AdminStatus = {
@@ -8,8 +8,17 @@ type AdminStatus = {
   model: string;
   openaiConfigured: boolean;
   supabaseConfigured: boolean;
-  email: { configured: boolean; recipient: string; sender: string; provider: string };
+  email: { configured: boolean; recipient: string; sender: string; provider: string; verifiedSenderRequired?: boolean };
   activeSources: number;
+};
+
+type SourceCheckResponse = {
+  checkedAt: string;
+  openaiConfigured: boolean;
+  model: string;
+  active: number;
+  readable: number;
+  results: ProviderCheck[];
 };
 
 class ApiError extends Error {
@@ -28,6 +37,7 @@ export function Admin() {
   const [loginValue, setLoginValue] = useState('circulointernacionalveracruz1@gmail.com');
   const [password, setPassword] = useState('');
   const [providers, setProviders] = useState<Provider[]>([]);
+  const [checks, setChecks] = useState<ProviderCheck[]>([]);
   const [status, setStatus] = useState<AdminStatus | null>(null);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
@@ -73,7 +83,7 @@ export function Admin() {
   };
 
   const saveAll = async () => {
-    setBusy(true); setMessage('');
+    setBusy(true); setMessage(''); setChecks([]);
     try {
       const data = await authorizedFetch('/api/admin/providers', token, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ providers }) });
       setProviders(data as Provider[]);
@@ -92,12 +102,26 @@ export function Admin() {
     finally { setBusy(false); }
   };
 
+  const checkSources = async () => {
+    setBusy(true); setMessage('');
+    try {
+      const data = await authorizedFetch('/api/admin/check-sources', token, { method: 'POST' }) as SourceCheckResponse;
+      setChecks(data.results);
+      setMessage(`Revisión terminada: ${data.readable} de ${data.active} fuentes activas entregaron contenido legible. IA: ${data.openaiConfigured ? `configurada con ${data.model}` : 'falta OPENAI_API_KEY'}.`);
+    } catch (error) { setMessage(error instanceof Error ? `No se pudieron revisar las fuentes: ${error.message}` : 'No se pudieron revisar las fuentes.'); }
+    finally { setBusy(false); }
+  };
+
   if (!token) return <div className="page-shell admin-login"><section className="wizard-card compact"><span className="section-kicker">Administración</span><h1>Acceso protegido</h1><p>Ingresa el correo autorizado y la clave administrativa.</p><Field label="Correo o usuario"><input autoComplete="username" value={loginValue} onChange={(event) => setLoginValue(event.target.value)} /></Field><Field label="Clave"><input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && login()} /></Field>{message && <div className="alert error">{message}</div>}<button className="button primary" disabled={busy} onClick={login}>{busy ? 'Verificando…' : 'Ingresar'}</button></section></div>;
 
-  return <div className="page-shell admin"><div className="section-heading"><div><span className="section-kicker">Administración</span><h1>Fuentes de búsqueda</h1><p>Registra hasta 10 ligas. El sistema las consultará internamente y enviará al asesor las propiedades localizadas; el cliente no verá las ligas.</p></div></div>
-    {message && <div className={message.startsWith('No ') || message.includes('venció') ? 'alert error' : 'alert'}>{message}</div>}
-    {status && <section className="summary-grid admin-status"><div className="summary"><small>Modelo</small><strong>{status.model}</strong></div><div className="summary"><small>OpenAI</small><strong>{status.openaiConfigured ? 'Configurado' : 'Falta API key'}</strong></div><div className="summary"><small>Correo</small><strong>{status.email.configured ? status.email.recipient : 'Sin configurar'}</strong></div><div className="summary"><small>Fuentes activas</small><strong>{status.activeSources}</strong></div></section>}
-    <div className="provider-list">{providers.map((provider, index) => <div className="provider-row sources-only" key={provider.id}><span className="provider-number">{index + 1}</span><input aria-label={`Nombre fuente ${index + 1}`} value={provider.name} placeholder={`Fuente ${index + 1}`} onChange={(event) => setProviders((all) => all.map((p) => p.id === provider.id ? { ...p, name: event.target.value } : p))}/><input aria-label={`Liga fuente ${index + 1}`} value={provider.baseUrl} placeholder="https://sitio.com o liga de búsqueda" onChange={(event) => setProviders((all) => all.map((p) => p.id === provider.id ? { ...p, baseUrl: event.target.value } : p))}/><label className="mini-toggle"><input type="checkbox" checked={provider.enabled} onChange={(event) => setProviders((all) => all.map((p) => p.id === provider.id ? { ...p, enabled: event.target.checked } : p))}/><span>{provider.enabled ? 'Activa' : 'Inactiva'}</span></label></div>)}</div>
-    <div className="admin-save"><button className="button ghost" disabled={busy} onClick={testEmail}>Probar correo</button><button className="button primary" disabled={busy} onClick={saveAll}>{busy ? 'Procesando…' : 'Guardar las 10 fuentes'}</button><button className="button ghost" onClick={() => { localStorage.removeItem('circulo-admin-token'); setToken(''); setStatus(null); }}>Cerrar sesión</button></div>
+  return <div className="page-shell admin"><div className="section-heading"><div><span className="section-kicker">Administración</span><h1>Fuentes de búsqueda</h1><p>Registra hasta 10 ligas. La IA buscará propiedades en esos dominios y el cliente podrá abrir y seleccionar los anuncios encontrados.</p></div></div>
+    {message && <div className={message.startsWith('No ') || message.includes('venció') || message.includes('falta ') ? 'alert error' : 'alert'}>{message}</div>}
+    {status && <section className="summary-grid admin-status"><div className="summary"><small>Modelo</small><strong>{status.model}</strong></div><div className="summary"><small>OpenAI</small><strong>{status.openaiConfigured ? 'Configurado' : 'Falta API key'}</strong></div><div className="summary"><small>Correo</small><strong>{status.email.configured ? status.email.recipient : 'Sin configurar'}</strong><span>{status.email.sender}</span></div><div className="summary"><small>Fuentes activas</small><strong>{status.activeSources}</strong></div></section>}
+    {status?.email.verifiedSenderRequired && <div className="alert error">El remitente usa resend.dev. Para enviar a {status.email.recipient}, configura EMAIL_FROM con un dominio verificado en Resend.</div>}
+    <div className="provider-list">{providers.map((provider, index) => {
+      const check = checks.find((item) => item.id === provider.id);
+      return <div className="provider-item" key={provider.id}><div className="provider-row sources-only"><span className="provider-number">{index + 1}</span><input aria-label={`Nombre fuente ${index + 1}`} value={provider.name} placeholder={`Fuente ${index + 1}`} onChange={(event) => setProviders((all) => all.map((p) => p.id === provider.id ? { ...p, name: event.target.value } : p))}/><input aria-label={`Liga fuente ${index + 1}`} value={provider.baseUrl} placeholder="https://sitio.com o liga de búsqueda" onChange={(event) => setProviders((all) => all.map((p) => p.id === provider.id ? { ...p, baseUrl: event.target.value } : p))}/><label className="mini-toggle"><input type="checkbox" checked={provider.enabled} onChange={(event) => setProviders((all) => all.map((p) => p.id === provider.id ? { ...p, enabled: event.target.checked } : p))}/><span>{provider.enabled ? 'Activa' : 'Inactiva'}</span></label></div>{check && <div className={`source-check ${check.readable ? 'ok' : check.enabled ? 'bad' : 'idle'}`}><strong>{check.readable ? 'Legible' : check.enabled ? 'Revisar' : 'Inactiva'}</strong><span>{check.message}</span>{check.statusCode && <small>HTTP {check.statusCode} · {check.charactersRead || 0} caracteres</small>}</div>}</div>;
+    })}</div>
+    <div className="admin-save"><button className="button ghost" disabled={busy} onClick={testEmail}>Probar correo</button><button className="button ghost" disabled={busy} onClick={checkSources}>{busy ? 'Procesando…' : 'Revisar lectura de ligas'}</button><button className="button primary" disabled={busy} onClick={saveAll}>{busy ? 'Procesando…' : 'Guardar las 10 fuentes'}</button><button className="button ghost" onClick={() => { localStorage.removeItem('circulo-admin-token'); setToken(''); setStatus(null); setChecks([]); }}>Cerrar sesión</button></div>
   </div>;
 }
