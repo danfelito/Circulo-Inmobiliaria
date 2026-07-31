@@ -2,7 +2,6 @@ import { Resend } from 'resend';
 import { config } from './config.js';
 import type { AiAnalysis, LeadInput, MatchResult } from './schemas.js';
 
-const advisorRecipient = 'patyestr@gmail.com';
 const escapeHtml = (value: unknown) => String(value ?? '')
   .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 
@@ -11,9 +10,10 @@ const currency = (value: number) => new Intl.NumberFormat('es-MX', { style: 'cur
 export function getEmailConfigurationStatus() {
   return {
     configured: Boolean(config.resendApiKey && config.emailFrom),
-    recipient: advisorRecipient,
+    recipient: config.advisorEmail,
     sender: config.emailFrom,
     provider: 'Resend',
+    verifiedSenderRequired: config.emailFrom.includes('@resend.dev'),
   };
 }
 
@@ -22,12 +22,12 @@ export async function sendTestEmail() {
   const resend = new Resend(config.resendApiKey);
   const result = await resend.emails.send({
     from: config.emailFrom,
-    to: [advisorRecipient],
+    to: [config.advisorEmail],
     subject: 'Prueba de correo — Círculo Internacional de Bienes Raíces',
     html: '<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto"><div style="border-top:6px solid #f51524;padding-top:18px"><h1>Prueba de correo correcta</h1></div><p>Este mensaje confirma que Render, Resend y el correo del asesor están conectados.</p></div>',
   });
   if (result.error) throw new Error(result.error.message);
-  return { sent: true, id: result.data?.id, recipient: advisorRecipient };
+  return { sent: true, id: result.data?.id, recipient: config.advisorEmail };
 }
 
 export async function sendAdvisorEmail(leadId: string, lead: LeadInput, analysis: AiAnalysis, matches: MatchResult[]) {
@@ -40,34 +40,39 @@ export async function sendAdvisorEmail(leadId: string, lead: LeadInput, analysis
       <p style="margin:0 0 8px">${match.bedrooms} recámara(s) · ${match.bathrooms} baño(s) · ${match.parking} estacionamiento(s) · ${match.constructionArea || match.landArea || 0} m²</p>
       <p style="margin:0 0 8px"><strong>Características:</strong> ${escapeHtml(match.amenities.join(', ') || 'Sin amenidades verificadas')}</p>
       <p style="margin:0 0 8px"><strong>Fuente:</strong> ${escapeHtml(match.sourceName)}</p>
-      ${match.sourceUrl && match.sourceUrl !== '#' ? `<a href="${escapeHtml(match.sourceUrl)}" style="color:#d61220;font-weight:700">Abrir anuncio para revisión del asesor</a>` : '<span style="color:#777">Catálogo interno o demostrativo</span>'}
+      ${match.sourceUrl && match.sourceUrl !== '#' ? `<a href="${escapeHtml(match.sourceUrl)}" style="color:#d61220;font-weight:700">Abrir anuncio original</a>` : '<span style="color:#777">Catálogo interno o demostrativo</span>'}
     </div>
   `).join('');
   const html = `
     <div style="font-family:Arial,sans-serif;max-width:760px;margin:auto;color:#171717">
-      <div style="border-top:6px solid #f51524;padding-top:18px"><h1 style="font-size:23px;margin:0 0 18px">Nueva solicitud inmobiliaria</h1></div>
+      <div style="border-top:6px solid #f51524;padding-top:18px"><h1 style="font-size:23px;margin:0 0 18px">Nueva requisición inmobiliaria confirmada</h1></div>
       <p><strong>Folio:</strong> ${escapeHtml(leadId)}</p>
       <h2 style="font-size:17px">Cliente</h2>
       <p>${escapeHtml(lead.fullName)} · ${escapeHtml(lead.email)} · ${escapeHtml(lead.phone)}</p>
-      <h2 style="font-size:17px">Criterios</h2>
+      <h2 style="font-size:17px">Lo que está buscando</h2>
       <p>${lead.transactionType === 'rent' ? 'Renta' : 'Compra'} de ${escapeHtml(lead.propertyType)} en ${escapeHtml(lead.city)}.<br>
       Presupuesto: ${currency(lead.budgetMin)} a ${currency(lead.budgetMax)}. Recámaras: ${lead.bedrooms}. Zonas: ${escapeHtml(lead.neighborhoods.join(', ') || 'abierta')}.</p>
+      ${lead.essentialFeatures.length ? `<p><strong>Indispensable:</strong> ${escapeHtml(lead.essentialFeatures.join(', '))}</p>` : ''}
+      ${lead.desirableFeatures.length ? `<p><strong>Deseable:</strong> ${escapeHtml(lead.desirableFeatures.join(', '))}</p>` : ''}
+      ${lead.comments ? `<p><strong>Comentarios:</strong> ${escapeHtml(lead.comments)}</p>` : ''}
       <h2 style="font-size:17px">Análisis</h2>
       <p><strong>${escapeHtml(analysis.headline)}</strong></p><p>${escapeHtml(analysis.explanation)}</p>
       <p><strong>Resumen para asesor:</strong> ${escapeHtml(analysis.advisorSummary)}</p>
-      <h2 style="font-size:17px">Propiedades encontradas</h2>
-      ${properties || '<p>No hubo coincidencias suficientes en las fuentes consultadas.</p>'}
-      <h2 style="font-size:17px">Alternativas</h2>
+      <h2 style="font-size:17px">${matches.length ? 'Propiedades seleccionadas por el cliente' : 'Resultado de la búsqueda'}</h2>
+      ${properties || '<p>No se localizaron coincidencias verificables. La requisición del cliente queda enviada para búsqueda y seguimiento manual.</p>'}
+      <h2 style="font-size:17px">Alternativas sugeridas</h2>
       <ul>${analysis.suggestions.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
-      <p style="font-size:12px;color:#667085">Las opciones deben ser verificadas por el asesor antes de enviarse al cliente. Precios, condiciones y disponibilidad pueden cambiar.</p>
+      <p style="font-size:12px;color:#667085">Verifica disponibilidad, precio y condiciones directamente en la fuente antes de contactar al cliente.</p>
     </div>`;
 
   const result = await resend.emails.send({
     from: config.emailFrom,
-    to: [advisorRecipient],
-    subject: `Nueva solicitud ${lead.transactionType === 'rent' ? 'de renta' : 'de compra'} — ${lead.fullName}`,
+    to: [config.advisorEmail],
+    subject: matches.length
+      ? `Cliente interesado en ${matches.length} propiedad(es) — ${lead.fullName}`
+      : `Requisición sin coincidencias — ${lead.fullName}`,
     html,
   });
   if (result.error) throw new Error(result.error.message);
-  return { sent: true, mode: 'resend' as const, id: result.data?.id };
+  return { sent: true, mode: 'resend' as const, id: result.data?.id, recipient: config.advisorEmail };
 }
