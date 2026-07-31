@@ -200,7 +200,8 @@ export async function checkProviderSources() {
 export async function collectProviderInventory(lead: LeadInput) {
   const providers = (await getProviders()).filter((provider) => provider.enabled && provider.baseUrl);
   const [catalog, webListings] = await Promise.all([getProperties(), searchConfiguredSources(lead, providers)]);
+  const realCatalog = catalog.filter((property) => !property.demo && property.sourceUrl && property.sourceUrl !== '#');
   const deduped = new Map<string, Property>();
-  for (const property of [...catalog, ...webListings]) deduped.set(property.id, property);
+  for (const property of [...realCatalog, ...webListings]) deduped.set(property.id, property);
   return { properties: [...deduped.values()], sourcesConsulted: providers.length };
 }
