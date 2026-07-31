@@ -27,6 +27,20 @@ const webListingSchema = z.object({
   })).max(24),
 });
 
+export type ProviderCheck = {
+  id: string;
+  name: string;
+  url: string;
+  host: string;
+  enabled: boolean;
+  reachable: boolean;
+  readable: boolean;
+  statusCode?: number;
+  contentType?: string;
+  charactersRead?: number;
+  message: string;
+};
+
 function hostFromUrl(value: string) {
   try { return new URL(value).hostname.replace(/^www\./, ''); } catch { return ''; }
 }
@@ -66,7 +80,7 @@ async function searchConfiguredSources(lead: LeadInput, providers: ProviderInput
 
   try {
     const response = await client.responses.parse({
-      model: 'gpt-5.6-luna',
+      model: config.openaiModel,
       store: false,
       reasoning: { effort: 'low' },
       tools: [{ type: 'web_search', search_context_size: 'low', filters: { allowed_domains: domains } }],
@@ -110,6 +124,77 @@ async function searchConfiguredSources(lead: LeadInput, providers: ProviderInput
     console.error('Configured source search failed.', error instanceof Error ? error.message : 'unknown');
     return [];
   }
+}
+
+async function checkProvider(provider: ProviderInput): Promise<ProviderCheck> {
+  const host = hostFromUrl(provider.baseUrl);
+  if (!provider.enabled || !provider.baseUrl) {
+    return { id: provider.id, name: provider.name, url: provider.baseUrl, host, enabled: provider.enabled, reachable: false, readable: false, message: 'Fuente inactiva o sin liga.' };
+  }
+  if (!host) {
+    return { id: provider.id, name: provider.name, url: provider.baseUrl, host: '', enabled: true, reachable: false, readable: false, message: 'La liga no tiene un dominio válido.' };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetch(provider.baseUrl, {
+      method: 'GET',
+      redirect: 'follow',
+      signal: controller.signal,
+      headers: {
+        'user-agent': 'Mozilla/5.0 (compatible; CirculoInmobiliarioSourceCheck/1.0)',
+        accept: 'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8',
+      },
+    });
+    const contentType = response.headers.get('content-type') || '';
+    const text = await response.text();
+    const charactersRead = text.trim().length;
+    const readable = response.ok && charactersRead >= 120 && /(text\/html|application\/json|text\/plain)/i.test(contentType);
+    return {
+      id: provider.id,
+      name: provider.name,
+      url: provider.baseUrl,
+      host,
+      enabled: true,
+      reachable: response.ok,
+      readable,
+      statusCode: response.status,
+      contentType,
+      charactersRead,
+      message: readable
+        ? 'La liga respondió y su contenido puede leerse desde el servidor.'
+        : response.ok
+          ? 'La liga respondió, pero no entregó contenido suficiente o compatible para lectura.'
+          : `La liga respondió con estado HTTP ${response.status}.`,
+    };
+  } catch (error) {
+    return {
+      id: provider.id,
+      name: provider.name,
+      url: provider.baseUrl,
+      host,
+      enabled: true,
+      reachable: false,
+      readable: false,
+      message: error instanceof Error && error.name === 'AbortError' ? 'La liga excedió 10 segundos de espera.' : `No fue posible abrir la liga: ${error instanceof Error ? error.message : 'error desconocido'}`,
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function checkProviderSources() {
+  const providers = await getProviders();
+  const results = await Promise.all(providers.map(checkProvider));
+  return {
+    checkedAt: new Date().toISOString(),
+    openaiConfigured: Boolean(config.openaiApiKey),
+    model: config.openaiModel,
+    active: results.filter((item) => item.enabled).length,
+    readable: results.filter((item) => item.readable).length,
+    results,
+  };
 }
 
 export async function collectProviderInventory(lead: LeadInput) {
