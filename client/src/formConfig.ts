@@ -3,7 +3,7 @@ import type { LeadForm } from './types';
 
 export const money = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 });
 export const draftKey = 'circulo-real-estate-draft-v1';
-export const idempotencyStorageKey = 'circulo-real-estate-idempotency-v1';
+export const idempotencyStorageKey = 'circulo-real-estate-idempotency-v2';
 
 export const schema = z.object({
   transactionType: z.enum(['rent', 'buy']), fullName: z.string().min(3, 'Escribe tu nombre completo.'), email: z.string().email('Escribe un correo válido.'), phone: z.string().min(8, 'Escribe un teléfono o WhatsApp válido.'),
