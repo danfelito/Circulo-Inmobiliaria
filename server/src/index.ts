@@ -10,8 +10,18 @@ import { config, isProduction } from './config.js';
 import { leadSchema, providersSchema } from './schemas.js';
 import { analyzeWithAi } from './openai.js';
 import { calculateLeadMetrics, matchProperties } from './scoring.js';
-import { getProperties, getProviders, importProperties, saveLead, saveProviders, saveSearch, updateLeadResult } from './repository.js';
-import { collectProviderInventory } from './providers.js';
+import {
+  getLeadForConfirmation,
+  getProperties,
+  getProviders,
+  importProperties,
+  markLeadConfirmed,
+  saveLead,
+  saveProviders,
+  saveSearch,
+  updateLeadResult,
+} from './repository.js';
+import { checkProviderSources, collectProviderInventory } from './providers.js';
 import { getEmailConfigurationStatus, sendAdvisorEmail, sendTestEmail } from './email.js';
 import { issueAdminToken, validateAdminCredentials, verifyAdminToken } from './adminAuth.js';
 
@@ -23,7 +33,7 @@ app.use(cors({ origin: isProduction ? config.clientOrigin.split(',').map((item) 
 app.use(express.json({ limit: '3mb' }));
 
 const publicLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 60, standardHeaders: true, legacyHeaders: false });
-const submitLimiter = rateLimit({ windowMs: 30 * 60 * 1000, limit: 8, standardHeaders: true, legacyHeaders: false });
+const submitLimiter = rateLimit({ windowMs: 30 * 60 * 1000, limit: 12, standardHeaders: true, legacyHeaders: false });
 const adminLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: true, legacyHeaders: false });
 app.use('/api', publicLimiter);
 
@@ -46,10 +56,25 @@ app.post('/api/leads', submitLimiter, async (req, res, next) => {
     if (stored.duplicate && stored.responsePayload) return res.json({ ...(stored.responsePayload as object), duplicate: true });
 
     const inventory = await collectProviderInventory(parsed.data);
-    const matches = matchProperties(parsed.data, inventory.properties);
+    const matches = matchProperties(parsed.data, inventory.properties).slice(0, 12);
     const ai = await analyzeWithAi(parsed.data, matches);
     const metrics = calculateLeadMetrics(parsed.data);
     const found = matches.length > 0;
+
+    let confirmationSent = false;
+    let emailWarning = '';
+    if (!found) {
+      try {
+        const emailResult = await sendAdvisorEmail(stored.id, parsed.data, ai.analysis, []);
+        confirmationSent = emailResult.sent;
+        if (!emailResult.sent) emailWarning = emailResult.reason || 'El correo quedó pendiente de configuración.';
+        console.info('Advisor no-match email result.', JSON.stringify(emailResult));
+      } catch (emailError) {
+        emailWarning = emailError instanceof Error ? emailError.message : 'El correo al asesor quedó pendiente.';
+        console.error('Advisor no-match email failed.', emailWarning);
+      }
+    }
+
     const responsePayload = {
       leadId: stored.id,
       duplicate: false,
@@ -57,11 +82,18 @@ app.post('/api/leads', submitLimiter, async (req, res, next) => {
       metrics,
       analysis: ai.analysis,
       matchCount: matches.length,
+      matches,
       sourcesConsulted: inventory.sourcesConsulted,
+      confirmationRequired: found,
+      confirmationSent,
+      emailSent: confirmationSent,
+      emailWarning,
       message: found
-        ? 'Hemos encontrado opciones relacionadas con tu solicitud. Un asesor las revisará y te las hará llegar en breve.'
-        : 'Muchas gracias por aceptar nuestras políticas. Un asesor revisará tu solicitud y estará en contacto contigo.',
-      disclaimer: 'Las propiedades no se muestran directamente al cliente hasta que un asesor confirme disponibilidad, precio y condiciones.',
+        ? 'Selecciona las propiedades que te interesan y confirma tu requisición para enviarlas al asesor.'
+        : 'Confirmada tu requisición. Un asesor recibió los datos de lo que estás buscando y dará seguimiento a tu solicitud.',
+      disclaimer: found
+        ? 'Las propiedades proceden de las fuentes configuradas. Revisa el anuncio original y selecciona únicamente las opciones que deseas enviar al asesor.'
+        : 'No se localizaron coincidencias verificables en este momento; tu búsqueda quedó registrada para seguimiento manual.',
     };
 
     await Promise.allSettled([
@@ -71,13 +103,47 @@ app.post('/api/leads', submitLimiter, async (req, res, next) => {
       if (result.status === 'rejected') console.error('Persistence step failed.', result.reason instanceof Error ? result.reason.message : 'unknown');
     }));
 
-    try {
-      const emailResult = await sendAdvisorEmail(stored.id, parsed.data, ai.analysis, matches);
-      console.info('Advisor email result.', JSON.stringify(emailResult));
-    } catch (emailError) {
-      console.error('Advisor email failed.', emailError instanceof Error ? emailError.message : 'unknown');
-    }
+    if (!found) await markLeadConfirmed(stored.id, [], confirmationSent);
     return res.status(201).json(responsePayload);
+  } catch (error) { return next(error); }
+});
+
+app.post('/api/leads/:leadId/confirm', submitLimiter, async (req, res, next) => {
+  try {
+    const input = z.object({ selectedPropertyIds: z.array(z.string().min(1).max(180)).min(1).max(12) }).safeParse(req.body);
+    if (!input.success) return res.status(422).json({ error: 'Selecciona al menos una propiedad para confirmar tu requisición.' });
+
+    const confirmation = await getLeadForConfirmation(req.params.leadId);
+    if (!confirmation) return res.status(404).json({ error: 'No encontramos la requisición. Realiza una nueva búsqueda.' });
+    if (confirmation.confirmationSent) {
+      return res.json({ confirmed: true, emailSent: true, duplicate: true, selectedPropertyIds: confirmation.selectedPropertyIds, message: 'Tu requisición ya había sido confirmada y enviada al asesor.' });
+    }
+
+    const selectedIds = [...new Set(input.data.selectedPropertyIds)];
+    const selected = confirmation.matches.filter((match) => selectedIds.includes(match.id));
+    if (!selected.length) return res.status(422).json({ error: 'Las propiedades seleccionadas ya no están disponibles en esta consulta.' });
+
+    try {
+      const emailResult = await sendAdvisorEmail(req.params.leadId, confirmation.lead, confirmation.analysis, selected);
+      await markLeadConfirmed(req.params.leadId, selected.map((item) => item.id), emailResult.sent);
+      return res.json({
+        confirmed: true,
+        emailSent: emailResult.sent,
+        selectedPropertyIds: selected.map((item) => item.id),
+        message: emailResult.sent
+          ? `Confirmada tu requisición. Enviamos al asesor ${selected.length} propiedad(es) seleccionada(s), incluyendo las ligas originales.`
+          : 'Confirmada tu requisición. La selección quedó registrada para que el asesor la revise.',
+      });
+    } catch (emailError) {
+      console.error('Advisor selection email failed.', emailError instanceof Error ? emailError.message : 'unknown');
+      await markLeadConfirmed(req.params.leadId, selected.map((item) => item.id), false);
+      return res.status(202).json({
+        confirmed: true,
+        emailSent: false,
+        selectedPropertyIds: selected.map((item) => item.id),
+        message: 'Confirmada tu requisición. La selección quedó registrada; el envío de correo al asesor está pendiente de configuración.',
+      });
+    }
   } catch (error) { return next(error); }
 });
 
@@ -110,6 +176,10 @@ app.post('/api/admin/test-email', requireAdmin, async (_req, res, next) => {
   try { res.json(await sendTestEmail()); } catch (error) { next(error); }
 });
 
+app.post('/api/admin/check-sources', requireAdmin, async (_req, res, next) => {
+  try { res.json(await checkProviderSources()); } catch (error) { next(error); }
+});
+
 app.get('/api/admin/providers', requireAdmin, async (_req, res, next) => {
   try { res.json(await getProviders()); } catch (error) { next(error); }
 });
@@ -134,7 +204,7 @@ app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
   void _next;
   if (error instanceof z.ZodError) return res.status(422).json({ error: 'Datos inválidos.', issues: error.flatten() });
   console.error('Request failed.', error instanceof Error ? error.message : 'unknown');
-  return res.status(500).json({ error: error instanceof Error ? error.message : 'No fue posible completar la solicitud. Intenta nuevamente.' });
+  return res.status(500).json({ error: 'La requisición no pudo registrarse en este momento. Verifica los datos e inténtalo nuevamente.' });
 });
 
 app.listen(config.port, () => { console.log(`Círculo Inmobiliario escuchando en puerto ${config.port}`); });

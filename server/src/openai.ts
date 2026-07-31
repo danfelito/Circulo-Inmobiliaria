@@ -31,7 +31,7 @@ export async function analyzeWithAi(lead: LeadInput, matches: MatchResult[]): Pr
 
   try {
     const response = await client.responses.parse({
-      model: 'gpt-5.6-luna',
+      model: config.openaiModel,
       store: false,
       reasoning: { effort: 'low' },
       input: [

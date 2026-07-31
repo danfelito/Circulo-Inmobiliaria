@@ -1,6 +1,16 @@
-import type { LeadForm, SearchResponse } from './types';
+import type { ConfirmationResponse, LeadForm, SearchResponse } from './types';
 
 const splitFeatures = (value: string) => value.split(/[\n,;]/).map((item) => item.trim()).filter(Boolean);
+
+async function readJson(response: Response) {
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const fieldErrors = data?.issues?.fieldErrors as Record<string, string[]> | undefined;
+    const detail = fieldErrors ? Object.values(fieldErrors).flat()[0] : undefined;
+    throw new Error(detail || data.error || 'No fue posible completar la operación.');
+  }
+  return data;
+}
 
 export async function submitLead(form: LeadForm, idempotencyKey: string): Promise<SearchResponse> {
   const payload = {
@@ -14,11 +24,14 @@ export async function submitLead(form: LeadForm, idempotencyKey: string): Promis
     headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
     body: JSON.stringify(payload),
   });
-  const data = await response.json();
-  if (!response.ok) {
-    const fieldErrors = data?.issues?.fieldErrors as Record<string, string[]> | undefined;
-    const detail = fieldErrors ? Object.values(fieldErrors).flat()[0] : undefined;
-    throw new Error(detail || data.error || 'No fue posible enviar la solicitud.');
-  }
-  return data as SearchResponse;
+  return readJson(response) as Promise<SearchResponse>;
+}
+
+export async function confirmLeadSelection(leadId: string, selectedPropertyIds: string[]): Promise<ConfirmationResponse> {
+  const response = await fetch(`/api/leads/${encodeURIComponent(leadId)}/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ selectedPropertyIds }),
+  });
+  return readJson(response) as Promise<ConfirmationResponse>;
 }
