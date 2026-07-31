@@ -2,3 +2,14 @@
 @import './forms.css';
 @import './results-admin.css';
 @import './responsive.css';
+
+:root[data-theme="dark"] .button.primary {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #fff;
+}
+
+:root[data-theme="dark"] .button.primary:hover {
+  background: #cf111e;
+  border-color: #cf111e;
+}
