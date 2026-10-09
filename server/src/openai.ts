@@ -1,10 +1,10 @@
 import OpenAI from 'openai';
 import { zodTextFormat } from 'openai/helpers/zod';
 import { config } from './config.js';
-import { aiAnalysisSchema, type AiAnalysis, type LeadInput, type MatchResult } from './schemas.js';
+import { aiAnalysisSchema, type AiAnalysis, type SearchCriteria, type MatchResult } from './schemas.js';
 import { deterministicAnalysis } from './scoring.js';
 
-export async function analyzeWithAi(lead: LeadInput, matches: MatchResult[]): Promise<{ analysis: AiAnalysis; source: 'openai' | 'deterministic' }> {
+export async function analyzeWithAi(lead: SearchCriteria, matches: MatchResult[]): Promise<{ analysis: AiAnalysis; source: 'openai' | 'deterministic' }> {
   const fallback = deterministicAnalysis(lead, matches);
   if (!config.openaiApiKey) return { analysis: fallback, source: 'deterministic' };
 

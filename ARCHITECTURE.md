@@ -1,27 +1,33 @@
-# Arquitectura
+# Arquitectura del buscador
 
-## Componentes
+client/: React, Vite y React Hook Form.
+server/: Express, clasificación determinista, búsqueda en fuentes, Resend y Supabase.
 
-- `client/`: React, TypeScript, Vite, React Hook Form y Zod.
-- `server/`: Express, OpenAI, Resend y Supabase.
-- `supabase/migrations/`: tablas, índices y RLS.
-- `render.yaml`: despliegue de un único servicio web.
+La consulta anónima y la solicitud de contacto son operaciones distintas.
+No se almacenan los datos de contacto en borradores del navegador. Los criterios
+se conservan durante la sesión; el borrador antiguo con datos personales se retira.
 
-## Flujo de búsqueda
+La fuente institucional lee únicamente GET /api/properties del portal Cloudflare
+publicado. No escribe en D1 ni altera el portal. Solo se incluyen propiedades
+publicadas, disponibles y con precio en MXN. No se utilizan datos demostrativos.
+Otras fuentes se buscan únicamente dentro de los dominios activos, y las ligas
+deben aparecer en fuentes/citas realmente consultadas.
 
-1. El cliente completa la solicitud y acepta privacidad y contacto.
-2. Express valida el formulario y aplica idempotencia y limitación de tasa.
-3. El servidor carga las diez fuentes guardadas en Supabase o memoria.
-4. OpenAI realiza una búsqueda web restringida a los dominios habilitados.
-5. Los resultados se normalizan, filtran y califican según los criterios del cliente.
-6. El asesor recibe por correo las opciones y sus ligas.
-7. El cliente solo recibe el número de opciones localizadas y un aviso de seguimiento; nunca recibe las ligas de los portales.
+La clasificación compara presupuesto, ciudad, zonas, mínimos y requisitos
+indispensables publicados. Los datos ausentes impiden una coincidencia exacta.
+Las alternativas y recomendaciones llevan evidencia de anuncios y cambios
+estructurados que el cliente revisa antes de aplicar.
 
-## Seguridad
+El resultado se firma con HMAC y SESSION_SECRET, incluye criterios y anuncios
+públicos, caduca en dos horas y sobrevive a un reinicio de Render. El endpoint de
+contacto valida esa firma, la selección y el consentimiento. La consulta no
+crea leads ni envía correos. La solicitud explícita sí guarda el lead y envía
+el reporte a los dos asesores configurados.
 
-- Las claves de OpenAI, Resend y Supabase permanecen en el servidor.
-- La clave administrativa se configura como secreto de Render, no en el repositorio.
-- Las tablas públicas tienen RLS habilitado y acceso revocado para `anon` y `authenticated`.
-- Los tokens administrativos son firmados y expiran.
-- Nombre, correo y teléfono no se envían a OpenAI.
-- No se implementan mecanismos para saltar autenticación, CAPTCHA o restricciones de portales.
+Las tablas Supabase existentes mantienen RLS y acceso reservado al servidor.
+Los resultados web se guardan como snapshots sin claves foráneas inexistentes.
+Los estados de leads usan los valores compatibles con la migración original.
+El envío utiliza idempotencia del proveedor y control de solicitudes concurrentes;
+si falla no se comunica una confirmación de éxito.
+
+No se eluden autenticación, CAPTCHA, bloqueos ni condiciones de los portales.

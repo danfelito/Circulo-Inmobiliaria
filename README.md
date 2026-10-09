@@ -1,58 +1,66 @@
-# Círculo Internacional de Bienes Raíces
+# Buscador de Círculo Internacional
 
-Aplicación full-stack para captar solicitudes de compra o renta, consultar internamente hasta diez fuentes configuradas y enviar al asesor las propiedades encontradas. El cliente no recibe enlaces directos a portales: únicamente se le informa si se localizaron opciones y que un asesor se las hará llegar.
+Aplicación React/Express publicada en https://circulo-inmobiliario.onrender.com.
+El cliente compara anuncios antes de proporcionar datos de contacto.
 
-## Funciones
+## Flujo público
 
-- Wizard para renta y compra.
-- Validación de criterios y presupuesto.
-- Consulta privada de hasta 10 fuentes administrables.
-- OpenAI Responses API con búsqueda web restringida a los dominios configurados.
-- Correo al asesor con las propiedades y sus ligas.
-- Respuesta pública sin ligas ni datos de los anuncios.
-- Persistencia en Supabase con RLS.
-- Inicio de sesión administrativo protegido mediante variables de entorno.
-- Diseño rojo, negro y blanco con el logotipo institucional.
-- Aviso de Privacidad integral.
-- Blueprint de Render y CI de GitHub.
+1. Operación, propiedad, zona/presupuesto y revisión: cuatro pasos.
+2. POST /api/searches valida solo criterios. No crea un lead ni envía correos.
+3. La fuente institucional consulta el catálogo público vigente de
+   circulointernacionalveracruz.org. Las otras fuentes activas se consultan
+   mediante búsqueda web restringida, si OpenAI está configurado.
+4. Los datos ausentes quedan por confirmar. Las coincidencias cumplen todos
+   los criterios comparables; las alternativas muestran sus diferencias.
+   Los cambios sugeridos usan precios/zonas de anuncios concretos, sin
+   incrementos porcentuales inventados.
+5. El cliente abre anuncios y selecciona propiedades. Puede pedir ayuda sin
+   elegir una propiedad o sin resultados.
+6. POST /api/searches/:searchId/contact requiere autorización de contacto,
+   privacidad y una consulta firmada, vigente durante dos horas. Solo acepta
+   IDs/ligas incluidos en esa consulta.
+7. Se guarda el lead y se envía un reporte a ambos asesores. El mensaje
+   incluye el perfil, criterios, resultado, cobertura y únicamente las
+   propiedades seleccionadas con sus ligas. Un fallo de correo permite
+   reintentar y nunca se presenta como éxito.
 
-## Render
+Las consultas no representan todo el mercado. Un anuncio localizado no
+garantiza disponibilidad; el asesor debe confirmarla y revisar las condiciones
+de pago, contrato, mascotas y fecha de entrega con el anunciante.
 
-Variables secretas requeridas:
+## Configuración
 
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `OPENAI_API_KEY`
-- `RESEND_API_KEY`
-- `EMAIL_FROM`
-- `ADMIN_PASSWORD`
+Las claves de OpenAI, Resend, Supabase y administración permanecen en Render.
+No se incluyen secretos en el navegador, archivos de ejemplo ni Git.
 
-Variables predefinidas en `render.yaml`:
+- ADVISOR_EMAILS=patyestr@hotmail.com,circulointernacionalveracruz1@gmail.com
+- RESEND_API_KEY: clave existente de la cuenta autorizada.
+- EMAIL_FROM: correo de un dominio propio verificado en Resend. Gmail,
+  Hotmail y resend.dev no sirven como remitente de estos reportes.
+  Si el remitente actual es uno de esos dominios y la clave permite consultar
+  dominios, el servidor puede usar un dominio de Círculo ya verificado.
+  No crea dominios ni cambia DNS.
+- SESSION_SECRET: secreto estable y privado; obligatorio en producción.
+- SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY: configuración existente del servidor.
+- OPENAI_API_KEY / OPENAI_MODEL: búsqueda en fuentes externas.
+- ADMIN_LOGIN / ADMIN_PASSWORD: acceso administrativo.
 
-- `ADMIN_LOGIN=circulointernacionalveracruz1`
-- `OPENAI_MODEL=gpt-5.6`
-- `ADVISOR_EMAIL=patyestr@hotmail.com`
+El panel /admin muestra el estado de correo y permite verificar fuentes.
+Un catálogo inaccesible se informa como cobertura parcial.
+Supabase conserva leads después de solicitar contacto; si no está disponible
+se usa memoria temporal. El correo recibido por los asesores contiene el
+reporte completo aun en ese caso. Las fuentes editadas en memoria se pierden
+al reiniciar: configure Supabase para conservarlas.
 
-En Render, configure `ADMIN_PASSWORD` con la clave administrativa acordada. No guarde esa clave en GitHub.
+## Desarrollo
 
-## Supabase
-
-Ejecute, en orden, las migraciones de `supabase/migrations/`. Esto permite persistir leads, resultados y las diez fuentes del panel. Sin Supabase, la aplicación opera en memoria y los cambios de fuentes se pierden cuando el servicio se reinicia.
-
-## Desarrollo y verificación
-
-```bash
-cp .env.example .env
-npm install --include=dev
+npm ci --include=dev
 npm run typecheck
 npm test
 npm run lint
 npm run build
 npm start
-```
 
-Endpoint de salud: `GET /api/health`.
-
-## Fuentes
-
-Las ligas configuradas se transforman en dominios permitidos para la búsqueda web. El sistema no elude autenticación, CAPTCHA ni restricciones técnicas. Solo debe utilizar fuentes cuyo acceso y uso estén autorizados.
+GET /api/health identifica guided-search-v2.
+GET /api/contact-status informa si el envío tiene configuración utilizable.
+Render despliega automáticamente los commits de main.

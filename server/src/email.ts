@@ -1,78 +1,76 @@
 import { Resend } from 'resend';
 import { config } from './config.js';
-import type { AiAnalysis, LeadInput, MatchResult } from './schemas.js';
+import type { LeadInput, MatchResult, SearchSnapshot } from './schemas.js';
+import { propertyLabel } from './scoring.js';
 
-const escapeHtml = (value: unknown) => String(value ?? '')
-  .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
-
+const escapeHtml = (value: unknown) => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 const currency = (value: number) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(value);
+const senderDomain = (sender: string) => sender.match(/@([a-z0-9.-]+)/i)?.[1].toLowerCase() || '';
+const publicDomains = new Set(['gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com', 'yahoo.com.mx', 'live.com', 'resend.dev']);
+const approvedDomains = ['circulointernacionalveracruz.org', 'circulointernacional.com'];
+let senderCache: { sender: string; expires: number } | null = null;
 
-export function getEmailConfigurationStatus() {
-  return {
-    configured: Boolean(config.resendApiKey && config.emailFrom),
-    recipient: config.advisorEmail,
-    sender: config.emailFrom,
-    provider: 'Resend',
-    verifiedSenderRequired: config.emailFrom.includes('@resend.dev'),
-  };
+export async function resolveEmailSender(): Promise<string> {
+  const domain = senderDomain(config.emailFrom);
+  if (domain && !publicDomains.has(domain)) return config.emailFrom;
+  if (senderCache && senderCache.expires > Date.now()) return senderCache.sender;
+  if (!config.resendApiKey) throw new Error('Falta configurar RESEND_API_KEY.');
+  const domains = await new Resend(config.resendApiKey).domains.list();
+  if (domains.error) throw new Error('Configura EMAIL_FROM con un correo de un dominio propio verificado en Resend. Gmail y Hotmail son destinatarios, no remitentes de Resend.');
+  const verified = domains.data?.data.find(item => item.status === 'verified' && approvedDomains.some(approved => item.name === approved || item.name.endsWith('.' + approved)));
+  if (!verified) throw new Error('Verifica un dominio de Círculo en Resend y configura EMAIL_FROM. El dominio actual del remitente no permite enviar estos reportes.');
+  const sender = 'Círculo Internacional <solicitudes@' + verified.name + '>';
+  senderCache = { sender, expires: Date.now() + 5 * 60 * 1000 };
+  return sender;
+}
+
+export async function getEmailConfigurationStatus() {
+  let sender = config.emailFrom, configurationMessage = '';
+  try { if (config.resendApiKey) sender = await resolveEmailSender(); else configurationMessage = 'Falta configurar RESEND_API_KEY.'; }
+  catch (error) { configurationMessage = error instanceof Error ? error.message : 'Revisa el remitente de correo.'; }
+  return { configured: Boolean(config.resendApiKey && senderDomain(sender) && !configurationMessage), recipient: config.advisorEmails.join(', '), recipients: config.advisorEmails, sender, provider: 'Resend', verifiedSenderRequired: Boolean(configurationMessage), configurationMessage };
 }
 
 export async function sendTestEmail() {
-  if (!config.resendApiKey) throw new Error('RESEND_API_KEY no está configurada en Render.');
-  const resend = new Resend(config.resendApiKey);
-  const result = await resend.emails.send({
-    from: config.emailFrom,
-    to: [config.advisorEmail],
-    subject: 'Prueba de correo — Círculo Internacional de Bienes Raíces',
-    html: '<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto"><div style="border-top:6px solid #f51524;padding-top:18px"><h1>Prueba de correo correcta</h1></div><p>Este mensaje confirma que Render, Resend y el correo del asesor están conectados.</p></div>',
-  });
+  const sender = await resolveEmailSender();
+  const result = await new Resend(config.resendApiKey).emails.send({ from: sender, to: config.advisorEmails, subject: 'Prueba de correo — Círculo Internacional', html: '<p>Esta prueba confirma la conexión de los reportes para ambos asesores de Círculo Internacional.</p>' });
   if (result.error) throw new Error(result.error.message);
-  return { sent: true, id: result.data?.id, recipient: config.advisorEmail };
+  return { sent: true, id: result.data?.id, recipient: config.advisorEmails.join(', '), recipients: config.advisorEmails };
 }
 
-export async function sendAdvisorEmail(leadId: string, lead: LeadInput, analysis: AiAnalysis, matches: MatchResult[]) {
-  if (!config.resendApiKey) return { sent: false, mode: 'demo' as const, reason: 'RESEND_API_KEY no configurada' };
-  const resend = new Resend(config.resendApiKey);
-  const properties = matches.slice(0, 12).map((match, index) => `
-    <div style="border:1px solid #e3e3e3;border-left:4px solid #f51524;border-radius:10px;padding:16px;margin:0 0 14px">
-      <p style="margin:0 0 8px"><strong>${index + 1}. ${escapeHtml(match.title)}</strong> · ${match.matchScore}% de coincidencia</p>
-      <p style="margin:0 0 8px">${currency(match.price)} · ${escapeHtml(match.city)}${match.neighborhood ? `, ${escapeHtml(match.neighborhood)}` : ''}</p>
-      <p style="margin:0 0 8px">${match.bedrooms} recámara(s) · ${match.bathrooms} baño(s) · ${match.parking} estacionamiento(s) · ${match.constructionArea || match.landArea || 0} m²</p>
-      <p style="margin:0 0 8px"><strong>Características:</strong> ${escapeHtml(match.amenities.join(', ') || 'Sin amenidades verificadas')}</p>
-      <p style="margin:0 0 8px"><strong>Fuente:</strong> ${escapeHtml(match.sourceName)}</p>
-      ${match.sourceUrl && match.sourceUrl !== '#' ? `<a href="${escapeHtml(match.sourceUrl)}" style="color:#d61220;font-weight:700">Abrir anuncio original</a>` : '<span style="color:#777">Catálogo interno o demostrativo</span>'}
-    </div>
-  `).join('');
-  const html = `
-    <div style="font-family:Arial,sans-serif;max-width:760px;margin:auto;color:#171717">
-      <div style="border-top:6px solid #f51524;padding-top:18px"><h1 style="font-size:23px;margin:0 0 18px">Nueva requisición inmobiliaria confirmada</h1></div>
-      <p><strong>Folio:</strong> ${escapeHtml(leadId)}</p>
-      <h2 style="font-size:17px">Cliente</h2>
-      <p>${escapeHtml(lead.fullName)} · ${escapeHtml(lead.email)} · ${escapeHtml(lead.phone)}</p>
-      <h2 style="font-size:17px">Lo que está buscando</h2>
-      <p>${lead.transactionType === 'rent' ? 'Renta' : 'Compra'} de ${escapeHtml(lead.propertyType)} en ${escapeHtml(lead.city)}.<br>
-      Presupuesto: ${currency(lead.budgetMin)} a ${currency(lead.budgetMax)}. Recámaras: ${lead.bedrooms}. Zonas: ${escapeHtml(lead.neighborhoods.join(', ') || 'abierta')}.</p>
-      ${lead.essentialFeatures.length ? `<p><strong>Indispensable:</strong> ${escapeHtml(lead.essentialFeatures.join(', '))}</p>` : ''}
-      ${lead.desirableFeatures.length ? `<p><strong>Deseable:</strong> ${escapeHtml(lead.desirableFeatures.join(', '))}</p>` : ''}
-      ${lead.comments ? `<p><strong>Comentarios:</strong> ${escapeHtml(lead.comments)}</p>` : ''}
-      <h2 style="font-size:17px">Análisis</h2>
-      <p><strong>${escapeHtml(analysis.headline)}</strong></p><p>${escapeHtml(analysis.explanation)}</p>
-      <p><strong>Resumen para asesor:</strong> ${escapeHtml(analysis.advisorSummary)}</p>
-      <h2 style="font-size:17px">${matches.length ? 'Propiedades seleccionadas por el cliente' : 'Resultado de la búsqueda'}</h2>
-      ${properties || '<p>No se localizaron coincidencias verificables. La requisición del cliente queda enviada para búsqueda y seguimiento manual.</p>'}
-      <h2 style="font-size:17px">Alternativas sugeridas</h2>
-      <ul>${analysis.suggestions.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
-      <p style="font-size:12px;color:#667085">Verifica disponibilidad, precio y condiciones directamente en la fuente antes de contactar al cliente.</p>
-    </div>`;
+export function buildAdvisorReport(leadId: string, lead: LeadInput, snapshot: SearchSnapshot, selected: MatchResult[]) {
+  const rows: [string, string][] = [
+    ['Operación', lead.transactionType === 'rent' ? 'Renta' : 'Compra'], ['Tipo', propertyLabel(lead.propertyType)],
+    ['Ciudad o municipio', lead.city], ['Zonas', lead.neighborhoods.join(', ') || 'Zona abierta'],
+    ['Presupuesto', currency(lead.budgetMin) + ' a ' + currency(lead.budgetMax) + (lead.transactionType === 'rent' ? ' mensuales' : '')],
+    ['Recámaras / baños / estacionamientos mínimos', [lead.bedrooms, lead.bathrooms, lead.parking].join(' / ')],
+    ['Terreno / construcción mínimos (m²)', [lead.landAreaMin || 0, lead.constructionAreaMin || 0].join(' / ')],
+    ['Plantas', lead.floors === 'indifferent' ? 'Indistintas' : lead.floors],
+    ['Patio / jardín / alberca indispensables', [lead.yard ? 'Patio' : '', lead.garden ? 'Jardín' : '', lead.pool ? 'Alberca' : ''].filter(Boolean).join(', ') || 'Sin preferencia'],
+    ['Indispensables', lead.essentialFeatures.join(', ') || 'Sin adicionales'], ['Deseables', [...lead.amenities, ...lead.desirableFeatures].join(', ') || 'Sin adicionales'],
+    ['Mobiliario', lead.furnished || 'Indistinto'], ['Inicio / entrega deseada', lead.moveInDate || lead.delivery || 'Por definir'],
+    ['Inquilinos / contrato', String(lead.tenants || 'Por definir') + ' / ' + (lead.contractMonths ? lead.contractMonths + ' meses' : 'Por definir')],
+    ['Mascotas', lead.hasPets ? lead.petDetails : 'No indicadas'], ['Forma de pago', lead.paymentMethod || 'Por definir'],
+    ['Crédito preaprobado / monto', (lead.creditPreapproved ? 'Sí' : 'Por confirmar') + ' / ' + currency(lead.creditAmount || 0)],
+    ['Garantía / factura', (lead.guarantee || 'Por definir') + ' / ' + (lead.invoiceRequired ? 'Requiere factura' : 'No solicitada')],
+    ['Comentarios', lead.comments || 'Sin comentarios'],
+  ];
+  const cards = selected.map((property, index) => '<div style="border:1px solid #ddd;border-left:4px solid #f51524;padding:16px;margin:12px 0;border-radius:10px"><h3>' + (index + 1) + '. ' + escapeHtml(property.title) + '</h3><p><strong>' + currency(property.price) + '</strong>' + (property.transactionType === 'rent' ? ' / mes' : '') + ' · ' + escapeHtml([property.neighborhood, property.city].filter(Boolean).join(', ')) + '</p><p>' + (property.matchType === 'exact' ? 'Coincide con los criterios publicados.' : 'Alternativa: ' + escapeHtml(property.gaps.join('; '))) + '</p><p>Fuente: ' + escapeHtml(property.sourceName) + ' · Consultada: ' + escapeHtml(property.verifiedAt) + '</p><a href="' + escapeHtml(property.sourceUrl) + '" style="color:#d61220">Abrir propiedad seleccionada</a><p style="font-size:12px;overflow-wrap:anywhere">' + escapeHtml(property.sourceUrl) + '</p></div>').join('');
+  const html = '<div style="font-family:Arial,sans-serif;max-width:760px;margin:auto;color:#171717;border-top:6px solid #f51524;padding:24px"><h1>Cliente solicita asesoría inmobiliaria</h1><p>Folio: ' + escapeHtml(leadId) + ' · Consulta: ' + escapeHtml(snapshot.createdAt) + '</p><h2>Contacto autorizado</h2><p>' + escapeHtml(lead.fullName) + '<br>' + escapeHtml(lead.phone) + (lead.email ? '<br>' + escapeHtml(lead.email) : '') + '</p><p>El cliente pidió contacto y aceptó el aviso de privacidad. Su consulta previa no generó envíos.</p><h2>Necesidades del cliente</h2><table style="width:100%;border-collapse:collapse">' + rows.map(([label, value]) => '<tr><th style="text-align:left;padding:8px;border-bottom:1px solid #eee">' + escapeHtml(label) + '</th><td style="padding:8px;border-bottom:1px solid #eee">' + escapeHtml(value) + '</td></tr>').join('') + '</table><h2>Resultado</h2><p>' + escapeHtml(snapshot.analysis.headline) + '</p><p>' + escapeHtml(snapshot.analysis.explanation) + '</p><p>' + snapshot.matches.length + ' coincidencias · ' + snapshot.alternatives.length + ' alternativas · ' + snapshot.sourcesConsulted + ' fuentes consultadas</p>' + (snapshot.warnings.length ? '<ul>' + snapshot.warnings.map(warning => '<li>' + escapeHtml(warning) + '</li>').join('') + '</ul>' : '') + '<h2>Propiedades que interesaron al cliente (' + selected.length + ')</h2>' + (cards || '<p>El cliente no seleccionó anuncios. Solicita asesoría para continuar o ampliar la búsqueda.</p>') + '<h2>Alternativas respaldadas por anuncios</h2>' + (snapshot.adjustments.length ? '<ul>' + snapshot.adjustments.map(adjustment => '<li>' + escapeHtml(adjustment.label + ': ' + adjustment.explanation) + '</li>').join('') + '</ul>' : '<p>No hay información suficiente para recomendar un precio o una zona distinta.</p>') + '<p style="font-size:12px;color:#666">Confirma disponibilidad, precio, características faltantes y condiciones con la fuente antes de proponer una visita.</p></div>';
+  const text = ['Cliente solicita contacto: ' + lead.fullName, 'Teléfono: ' + lead.phone, 'Correo: ' + lead.email, 'Folio: ' + leadId, ...rows.map(([label, value]) => label + ': ' + value), snapshot.analysis.headline, 'Propiedades seleccionadas:', ...selected.map(property => property.title + ' | ' + currency(property.price) + ' | ' + property.sourceUrl + (property.gaps.length ? ' | Diferencias: ' + property.gaps.join('; ') : '')), ...snapshot.adjustments.map(adjustment => adjustment.label + ': ' + adjustment.explanation)].join('\n');
+  return { html, text };
+}
 
-  const result = await resend.emails.send({
-    from: config.emailFrom,
-    to: [config.advisorEmail],
-    subject: matches.length
-      ? `Cliente interesado en ${matches.length} propiedad(es) — ${lead.fullName}`
-      : `Requisición sin coincidencias — ${lead.fullName}`,
-    html,
-  });
+export async function sendAdvisorEmail(leadId: string, lead: LeadInput, snapshot: SearchSnapshot, selected: MatchResult[]) {
+  if (!lead.contactAccepted || !lead.privacyAccepted) throw new Error('Falta la autorización de contacto.');
+  const sender = await resolveEmailSender();
+  const report = buildAdvisorReport(leadId, lead, snapshot, selected);
+  const result = await new Resend(config.resendApiKey).emails.send({
+    from: sender, to: config.advisorEmails, ...(lead.email ? { replyTo: lead.email } : {}),
+    subject: 'Solicitud de asesoría · ' + lead.fullName + ' · ' + selected.length + ' propiedad(es) de interés',
+    html: report.html, text: report.text,
+  }, { idempotencyKey: 'contact-' + leadId });
   if (result.error) throw new Error(result.error.message);
-  return { sent: true, mode: 'resend' as const, id: result.data?.id, recipient: config.advisorEmail };
+  if (!result.data?.id) throw new Error('El proveedor no confirmó la recepción del reporte.');
+  return { sent: true, id: result.data.id, recipients: config.advisorEmails };
 }

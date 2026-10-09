@@ -1,80 +1,65 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { submitLead } from './api';
-import type { LeadForm, SearchResponse } from './types';
-import { defaults, draftKey, idempotencyStorageKey, schema } from './formConfig';
+import { submitSearch } from './api';
+import type { LeadForm, SearchAdjustment, SearchResponse } from './types';
+import { defaults, draftKey, schema } from './formConfig';
 import { Results } from './Results';
-import { StepContact, StepLocation, StepMode, StepProperty, StepReview } from './Steps';
+import { StepLocation, StepMode, StepProperty, StepReview } from './Steps';
 
+const storage = { read: () => { try { return JSON.parse(sessionStorage.getItem(draftKey) || 'null') as LeadForm | null; } catch { return null; } }, save: (value: unknown) => { try { sessionStorage.setItem(draftKey, JSON.stringify(value)); } catch { /* Storage is optional. */ } } };
 export function Wizard() {
   const [step, setStep] = useState(0);
   const [result, setResult] = useState<SearchResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [submitError, setSubmitError] = useState('');
-  const saved = useMemo(() => {
-    try { return JSON.parse(localStorage.getItem(draftKey) || 'null') as LeadForm | null; } catch { return null; }
-  }, []);
+  const [searchKey, setSearchKey] = useState(() => crypto.randomUUID());
+  const saved = useMemo(() => storage.read(), []);
   const form = useForm<LeadForm>({ resolver: zodResolver(schema) as Resolver<LeadForm>, defaultValues: saved || defaults, mode: 'onBlur' });
-  const type = form.watch('transactionType');
-  const propertyType = form.watch('propertyType');
-  const hasPets = form.watch('hasPets');
-  const payment = form.watch('paymentMethod');
+  const type = form.watch('transactionType'), propertyType = form.watch('propertyType'), hasPets = form.watch('hasPets'), payment = form.watch('paymentMethod');
 
   useEffect(() => {
-    const subscription = form.watch((value) => localStorage.setItem(draftKey, JSON.stringify(value)));
+    // Retire the old draft containing contact data. New drafts contain criteria only.
+    try { localStorage.removeItem('circulo-real-estate-draft-v1'); localStorage.removeItem('circulo-real-estate-idempotency-v2'); } catch { /* Storage is optional. */ }
+    const subscription = form.watch(value => storage.save(value));
     return () => subscription.unsubscribe();
   }, [form]);
+  useEffect(() => {
+    if (!['house', 'apartment'].includes(propertyType)) { form.setValue('bedrooms', 0); form.setValue('bathrooms', 0); }
+    if (propertyType === 'land') { form.setValue('parking', 0); form.setValue('floors', 'indifferent'); form.setValue('yard', false); form.setValue('garden', false); form.setValue('pool', false); form.setValue('constructionAreaMin', 0); }
+  }, [form, propertyType]);
 
   const next = async () => {
-    const groups: (keyof LeadForm)[][] = [[], ['fullName', 'email', 'phone'], type === 'rent' ? ['tenants', 'moveInDate', 'contractMonths', 'propertyType', 'bedrooms'] : ['paymentMethod', 'propertyType', 'bedrooms'], ['city', 'budgetMax'], ['privacyAccepted', 'contactAccepted']];
-    if (step === 0 || await form.trigger(groups[step])) setStep((current) => Math.min(4, current + 1));
+    const groups: (keyof LeadForm)[][] = [[], ['propertyType', 'bedrooms', 'bathrooms', 'parking', 'landAreaMin', 'constructionAreaMin', 'petDetails', 'tenants', 'contractMonths', 'creditAmount'], ['city', 'budgetMin', 'budgetMax'], []];
+    if (step === 0 || await form.trigger(groups[step])) { setStep(current => Math.min(3, current + 1)); setSubmitError(''); document.querySelector('.wizard-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   };
-
-  const onSubmit = form.handleSubmit(async (values) => {
+  const onSubmit = form.handleSubmit(async values => {
     setBusy(true); setSubmitError('');
-    try {
-      let key = localStorage.getItem(idempotencyStorageKey);
-      if (!key) { key = crypto.randomUUID(); localStorage.setItem(idempotencyStorageKey, key); }
-      setResult(await submitLead(values, key));
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch (error) { setSubmitError(error instanceof Error ? error.message : 'No fue posible analizar la solicitud.'); }
+    try { setResult(await submitSearch(values, searchKey)); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    catch (error) { setSubmitError(error instanceof Error ? error.message : 'No fue posible consultar las fuentes. Inténtalo de nuevo.'); }
     finally { setBusy(false); }
-  });
-
-  const resetSearch = () => { localStorage.removeItem(idempotencyStorageKey); setResult(null); setStep(1); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-  const newSearch = () => { localStorage.removeItem(draftKey); localStorage.removeItem(idempotencyStorageKey); form.reset(defaults); setResult(null); setStep(0); };
-  const applySuggestion = (suggestion: string) => {
-    const text = suggestion.toLowerCase();
-    if (text.includes('presupuesto')) form.setValue('budgetMax', Math.round(form.getValues('budgetMax') * 1.15));
-    if (text.includes('colonias')) { form.setValue('neighborhood1', ''); form.setValue('neighborhood2', ''); form.setValue('neighborhood3', ''); }
-    if (text.includes('recámaras')) form.setValue('bedrooms', Math.max(0, form.getValues('bedrooms') - 1));
-    if (text.includes('alberca')) form.setValue('pool', false);
-    if (text.includes('departamentos')) form.setValue('propertyType', 'apartment');
+  }, () => { setSubmitError('Revisa los datos marcados antes de buscar.'); });
+  const resetSearch = () => { setSearchKey(crypto.randomUUID()); setResult(null); setStep(2); setSubmitError(''); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const newSearch = () => { storage.save(null); setSearchKey(crypto.randomUUID()); form.reset(defaults); setResult(null); setStep(0); setSubmitError(''); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const applyAdjustment = (adjustment: SearchAdjustment) => {
+    const changes = adjustment.changes;
+    if (changes.budgetMax !== undefined) form.setValue('budgetMax', changes.budgetMax);
+    if (changes.budgetMin !== undefined) form.setValue('budgetMin', changes.budgetMin);
+    if (changes.city) form.setValue('city', changes.city);
+    if (changes.neighborhoods) { form.setValue('neighborhood1', changes.neighborhoods[0] || ''); form.setValue('neighborhood2', changes.neighborhoods[1] || ''); form.setValue('neighborhood3', changes.neighborhoods[2] || ''); }
     resetSearch();
   };
+  if (result) return <Results result={result} onReconfigure={resetSearch} onNew={newSearch} onApply={applyAdjustment} />;
 
-  if (result) return <Results result={result} onReconfigure={resetSearch} onNew={newSearch} onApply={applySuggestion} />;
-
-  return <div className="page-shell">
-    <section className="hero">
-      <div><span className="eyebrow">Asesoría inmobiliaria guiada</span><h1>Encuentra la mejor opción que se ajuste a tus necesidades</h1>
-      <p>Cuéntanos qué necesitas. Compararemos tus criterios de búsqueda con la disponibilidad del mercado.</p></div>
-      <div className="trust-card"><strong>Un proceso claro, un solo canal</strong><p>Al utilizar nuestro servicio aceptas trabajar coordinadamente con nosotros y dar preferencia a nuestro acompañamiento profesional. Con esto evitamos búsquedas redundantes, reducimos confusiones y podemos evaluar la mejor opción de inversión.</p></div>
-    </section>
-
-    <section className="wizard-card">
-      <div className="progress-row"><span>Paso {step + 1} de 5</span><div className="progress"><i style={{ width: `${(step + 1) * 20}%` }} /></div></div>
-      {step === 0 && <StepMode value={type} onChange={(value) => form.setValue('transactionType', value)} />}
-      {step === 1 && <StepContact form={form} />}
-      {step === 2 && <StepProperty form={form} type={type} propertyType={propertyType} hasPets={hasPets} payment={payment} />}
-      {step === 3 && <StepLocation form={form} type={type} />}
-      {step === 4 && <StepReview form={form} type={type} />}
+  return <div className="page-shell"><section className={'hero ' + (step ? 'hero-compact' : '')}><div><span className="eyebrow">Encuentra tu próxima propiedad</span><h1>Una búsqueda clara. Opciones para decidir mejor.</h1><p>Cuéntanos qué necesitas y cuánto quieres invertir. Compara anuncios encontrados en nuestras fuentes y descubre qué alternativas tienes.</p></div><div className="trust-card"><strong>Tú decides el siguiente paso</strong><p>Primero revisas los resultados. Después eliges las propiedades que te interesan y, si lo deseas, pides que un asesor te contacte con tu búsqueda ya preparada.</p><span className="trust-note">Sin datos de contacto para consultar opciones.</span></div></section>
+    <section className="wizard-card" aria-busy={busy}><div className="progress-row"><span>Paso {step + 1} de 4</span><div className="progress" role="progressbar" aria-label="Avance de la búsqueda" aria-valuemin={1} aria-valuemax={4} aria-valuenow={step + 1}><i style={{ width: ((step + 1) * 25) + '%' }} /></div></div><ol className="step-labels">{['Operación', 'Propiedad', 'Zona y presupuesto', 'Revisión'].map((label, index) => <li key={label} className={index === step ? 'current' : index < step ? 'done' : ''} aria-current={index === step ? 'step' : undefined}>{label}</li>)}</ol>
+      {step === 0 && <StepMode value={type} onChange={value => { form.setValue('transactionType', value); setSearchKey(crypto.randomUUID()); }} />}
+      {step === 1 && <StepProperty form={form} type={type} propertyType={propertyType} hasPets={hasPets} payment={payment} />}
+      {step === 2 && <StepLocation form={form} type={type} />}
+      {step === 3 && <StepReview form={form} type={type} />}
       {submitError && <div className="alert error" role="alert">{submitError}</div>}
-      <div className="wizard-actions">
-        {step > 0 && <button type="button" className="button ghost" onClick={() => setStep((current) => current - 1)}>Regresar</button>}
-        {step < 4 ? <button type="button" className="button primary" onClick={next}>Continuar</button> : <button type="button" className="button primary" disabled={busy} onClick={onSubmit}>{busy ? 'Analizando fuentes y criterios…' : 'Buscar opciones'}</button>}
-      </div>
+      {busy && <div className="search-progress" role="status"><span className="loading-dot" /><div><strong>Estamos consultando las fuentes</strong><p>Comparamos precios, ubicación y características. Esto puede tardar un momento.</p></div></div>}
+      <div className="wizard-actions">{step > 0 && <button type="button" className="button ghost" disabled={busy} onClick={() => setStep(current => current - 1)}>Volver</button>}{step < 3 ? <button type="button" className="button primary" onClick={next}>Continuar</button> : <button type="button" className="button primary" disabled={busy} onClick={onSubmit}>{busy ? 'Buscando opciones…' : 'Ver propiedades y alternativas'}</button>}</div>
     </section>
   </div>;
 }

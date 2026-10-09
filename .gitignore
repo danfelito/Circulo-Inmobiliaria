@@ -6,3 +6,5 @@ server/dist
 coverage
 .DS_Store
 *.log
+
+*.tsbuildinfo

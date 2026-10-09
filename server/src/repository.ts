@@ -18,15 +18,22 @@ export type LeadConfirmationData = {
 const memoryLeads = new Map<string, MemoryLead>();
 let memoryProperties: Property[] = [...demoProperties];
 let memoryProviders: ProviderInput[] = [...demoProviders];
-const requiredProviderUrl = 'https://circulointernacional.com/home-page/properties/home';
+const requiredProviderUrl = 'https://circulointernacionalveracruz.org/propiedades';
 
 function getClient(): SupabaseClient | null {
   if (!config.supabaseUrl || !config.supabaseServiceRoleKey) return null;
-  return createClient(config.supabaseUrl, config.supabaseServiceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  return createClient(config.supabaseUrl, config.supabaseServiceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { fetch: (input, init) => fetch(input, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(6000)]) : AbortSignal.timeout(6000) }) },
+  });
 }
 
 function ensureRequiredProvider(providers: ProviderInput[]): ProviderInput[] {
-  if (providers.some((provider) => provider.baseUrl.includes('circulointernacional.com'))) return providers;
+  providers = providers.map(provider => {
+    let host = ''; try { host = new URL(provider.baseUrl).hostname.replace(/^www\./, ''); } catch { /* Empty source. */ }
+    return host === 'circulointernacional.com' ? { ...provider, baseUrl: requiredProviderUrl } : provider;
+  });
+  if (providers.some((provider) => provider.baseUrl === requiredProviderUrl)) return providers;
   const copy = providers.slice(0, 10);
   while (copy.length < 10) copy.push({ id: `source-${copy.length + 1}`, name: `Fuente ${copy.length + 1}`, baseUrl: '', enabled: false });
   const target = copy.findIndex((provider) => !provider.baseUrl || !provider.enabled);
@@ -144,6 +151,7 @@ export async function markLeadConfirmed(leadId: string, selectedPropertyIds: str
     updatedPayload = {
       ...current,
       confirmationSent: emailSent,
+      emailSent,
       confirmationAttemptedAt: new Date().toISOString(),
       selectedPropertyIds,
     };
@@ -158,12 +166,13 @@ export async function markLeadConfirmed(leadId: string, selectedPropertyIds: str
       updatedPayload = {
         ...(existing.data.response_payload as Record<string, unknown>),
         confirmationSent: emailSent,
+        emailSent,
         confirmationAttemptedAt: new Date().toISOString(),
         selectedPropertyIds,
       };
     }
   }
-  const result = await supabase.from('leads').update({ status: emailSent ? 'confirmed' : 'confirmation_pending_email', response_payload: updatedPayload }).eq('id', leadId);
+  const result = await supabase.from('leads').update({ status: emailSent ? 'contacted' : 'analyzed', response_payload: updatedPayload }).eq('id', leadId);
   if (result.error) console.warn('Lead confirmation status could not be persisted.', result.error.message);
 }
 
@@ -173,7 +182,7 @@ export async function saveSearch(leadId: string, criteria: LeadInput, analysis: 
   const result = await supabase.from('searches').insert({ lead_id: leadId, criteria, analysis, result_count: matches.length }).select('id').single();
   if (result.error) throw result.error;
   if (!matches.length) return;
-  const rows = matches.map((match) => ({ search_id: result.data.id, property_id: match.demo ? null : match.id, match_score: match.matchScore, reasons: match.reasons, gaps: match.gaps, snapshot: match }));
+  const rows = matches.map((match) => ({ search_id: result.data.id, property_id: null, match_score: match.matchScore, reasons: match.reasons, gaps: match.gaps, snapshot: match }));
   const saved = await supabase.from('search_results').insert(rows);
   if (saved.error) throw saved.error;
 }

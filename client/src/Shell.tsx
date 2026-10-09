@@ -43,7 +43,7 @@ export function Shell({ children }: { children: ReactNode }) {
           <Link to="/admin">Administración</Link>
           <a
             className="sibling-site-link"
-            href="https://circulo-bienes-raices-2.onrender.com/propiedades"
+            href="https://circulointernacionalveracruz.org/propiedades"
             target="_blank"
             rel="noreferrer"
           >
@@ -67,7 +67,7 @@ export function Shell({ children }: { children: ReactNode }) {
       <span>© {new Date().getFullYear()} Círculo Internacional de Bienes Raíces</span>
       <a
         className="footer-site-link"
-        href="https://circulo-bienes-raices-2.onrender.com/propiedades"
+        href="https://circulointernacionalveracruz.org/propiedades"
         target="_blank"
         rel="noreferrer"
       >

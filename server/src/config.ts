@@ -14,6 +14,7 @@ export const config = {
   resendApiKey: process.env.RESEND_API_KEY ?? '',
   emailFrom: process.env.EMAIL_FROM ?? 'Círculo Internacional <onboarding@resend.dev>',
   advisorEmail: process.env.ADVISOR_EMAIL ?? 'patyestr@hotmail.com',
+  advisorEmails: [...new Set((process.env.ADVISOR_EMAILS || 'patyestr@hotmail.com,circulointernacionalveracruz1@gmail.com').split(',').map(value => value.trim()).filter(Boolean))],
   adminLogin: process.env.ADMIN_LOGIN ?? 'circulointernacionalveracruz1@gmail.com',
   adminPassword: process.env.ADMIN_PASSWORD ?? '',
   adminPasswordHash: process.env.ADMIN_PASSWORD_HASH ?? '$2b$12$QoNtflnxNQirKwYrCDc.9.RRW1FDsoLuspJowOelRX3J902Wnmvaq',

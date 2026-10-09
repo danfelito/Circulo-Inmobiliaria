@@ -3,16 +3,15 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { config, isProduction } from './config.js';
-import { leadSchema, providersSchema } from './schemas.js';
-import { analyzeWithAi } from './openai.js';
-import { calculateLeadMetrics, matchProperties } from './scoring.js';
+import { contactSchema, criteriaSchema, leadSchema, providersSchema, type SearchSnapshot } from './schemas.js';
+import { signSearch, readSearch } from './searchSession.js';
+import { deterministicAnalysis, rankProperties } from './scoring.js';
 import {
   getLeadForConfirmation,
-  getProperties,
   getProviders,
   importProperties,
   markLeadConfirmed,
@@ -25,7 +24,7 @@ import { checkProviderSources, collectProviderInventory } from './providers.js';
 import { getEmailConfigurationStatus, sendAdvisorEmail, sendTestEmail } from './email.js';
 import { issueAdminToken, validateAdminCredentials, verifyAdminToken } from './adminAuth.js';
 
-const app = express();
+export const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 app.use(helmet({ contentSecurityPolicy: false }));
@@ -38,114 +37,79 @@ const adminLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHe
 app.use('/api', publicLimiter);
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, service: 'circulo-inmobiliario', timestamp: new Date().toISOString(), mode: config.supabaseUrl ? 'supabase' : 'demo', model: config.openaiModel });
+  res.json({ ok: true, service: 'circulo-inmobiliario', version: 'guided-search-v2', timestamp: new Date().toISOString(), mode: config.supabaseUrl ? 'supabase' : 'memory', model: config.openaiModel });
 });
 
-app.get('/api/demo/properties', async (_req, res, next) => {
-  try { res.json(await getProperties()); } catch (error) { next(error); }
+app.get('/api/contact-status', async (_req, res, next) => {
+  try { const status = await getEmailConfigurationStatus(); res.json({ available: status.configured }); } catch (error) { next(error); }
 });
 
-app.post('/api/leads', submitLimiter, async (req, res, next) => {
+const searches = new Map<string, { expires: number; promise: Promise<SearchSnapshot> }>();
+app.post('/api/searches', submitLimiter, async (req, res, next) => {
   try {
-    const parsed = leadSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(422).json({ error: 'Revisa los campos marcados.', issues: parsed.error.flatten() });
-    if (parsed.data.website) return res.status(400).json({ error: 'Solicitud inválida.' });
-
-    const idempotencyKey = String(req.header('Idempotency-Key') || randomUUID()).slice(0, 128);
-    const stored = await saveLead(parsed.data, idempotencyKey);
-    if (stored.duplicate && stored.responsePayload) return res.json({ ...(stored.responsePayload as object), duplicate: true });
-
-    const inventory = await collectProviderInventory(parsed.data);
-    const matches = matchProperties(parsed.data, inventory.properties).slice(0, 12);
-    const ai = await analyzeWithAi(parsed.data, matches);
-    const metrics = calculateLeadMetrics(parsed.data);
-    const found = matches.length > 0;
-
-    let confirmationSent = false;
-    let emailWarning = '';
-    if (!found) {
-      try {
-        const emailResult = await sendAdvisorEmail(stored.id, parsed.data, ai.analysis, []);
-        confirmationSent = emailResult.sent;
-        if (!emailResult.sent) emailWarning = emailResult.reason || 'El correo quedó pendiente de configuración.';
-        console.info('Advisor no-match email result.', JSON.stringify(emailResult));
-      } catch (emailError) {
-        emailWarning = emailError instanceof Error ? emailError.message : 'El correo al asesor quedó pendiente.';
-        console.error('Advisor no-match email failed.', emailWarning);
-      }
+    const parsed = criteriaSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(422).json({ error: 'Revisa tus criterios de búsqueda.', issues: parsed.error.flatten() });
+    const key = String(req.header('Idempotency-Key') || randomUUID()).slice(0, 128) + ':' + createHash('sha256').update(JSON.stringify(parsed.data)).digest('hex');
+    for (const [id, entry] of searches) if (entry.expires < Date.now()) searches.delete(id);
+    if (searches.size > 500) searches.delete(searches.keys().next().value!);
+    let entry = searches.get(key);
+    if (!entry) {
+      const promise = (async (): Promise<SearchSnapshot> => {
+        const inventory = await collectProviderInventory(parsed.data);
+        const ranked = rankProperties(parsed.data, inventory.properties);
+        return { searchId: randomUUID(), createdAt: new Date().toISOString(), criteria: parsed.data, analysis: deterministicAnalysis(parsed.data, ranked.matches, ranked.alternatives, ranked.adjustments), ...ranked, sourcesConsulted: inventory.sourcesConsulted, warnings: inventory.warnings };
+      })();
+      entry = { expires: Date.now() + 20 * 60 * 1000, promise };
+      searches.set(key, entry);
+      promise.catch(() => searches.delete(key));
     }
-
-    const responsePayload = {
-      leadId: stored.id,
-      duplicate: false,
-      analysisSource: ai.source,
-      metrics,
-      analysis: ai.analysis,
-      matchCount: matches.length,
-      matches,
-      sourcesConsulted: inventory.sourcesConsulted,
-      confirmationRequired: found,
-      confirmationSent,
-      emailSent: confirmationSent,
-      emailWarning,
-      message: found
-        ? 'Selecciona las propiedades que te interesan y confirma tu requisición para enviarlas al asesor.'
-        : 'Confirmada tu requisición. Un asesor recibió los datos de lo que estás buscando y dará seguimiento a tu solicitud.',
-      disclaimer: found
-        ? 'Las propiedades proceden de las fuentes configuradas. Revisa el anuncio original y selecciona únicamente las opciones que deseas enviar al asesor.'
-        : 'No se localizaron coincidencias verificables en este momento; tu búsqueda quedó registrada para seguimiento manual.',
-    };
-
-    await Promise.allSettled([
-      updateLeadResult(stored.id, responsePayload, found),
-      saveSearch(stored.id, parsed.data, ai.analysis, matches),
-    ]).then((results) => results.forEach((result) => {
-      if (result.status === 'rejected') console.error('Persistence step failed.', result.reason instanceof Error ? result.reason.message : 'unknown');
-    }));
-
-    if (!found) await markLeadConfirmed(stored.id, [], confirmationSent);
-    return res.status(201).json(responsePayload);
-  } catch (error) { return next(error); }
+    const snapshot = await entry.promise;
+    return res.json({ ...snapshot, contactToken: signSearch(snapshot), matchCount: snapshot.matches.length, alternativeCount: snapshot.alternatives.length });
+  } catch (error) { next(error); }
 });
 
-app.post('/api/leads/:leadId/confirm', submitLimiter, async (req, res, next) => {
+type ContactResponse = { confirmed: boolean; emailSent: boolean; leadId: string; selectedPropertyIds: string[]; message: string; duplicate?: boolean };
+const contactRequests = new Map<string, Promise<ContactResponse>>();
+app.post('/api/searches/:searchId/contact', submitLimiter, async (req, res, next) => {
   try {
-    const input = z.object({ selectedPropertyIds: z.array(z.string().min(1).max(180)).min(1).max(12) }).safeParse(req.body);
-    if (!input.success) return res.status(422).json({ error: 'Selecciona al menos una propiedad para confirmar tu requisición.' });
-
-    const confirmation = await getLeadForConfirmation(req.params.leadId);
-    if (!confirmation) return res.status(404).json({ error: 'No encontramos la requisición. Realiza una nueva búsqueda.' });
-    if (confirmation.confirmationSent) {
-      return res.json({ confirmed: true, emailSent: true, duplicate: true, selectedPropertyIds: confirmation.selectedPropertyIds, message: 'Tu requisición ya había sido confirmada y enviada al asesor.' });
-    }
-
+    const input = z.object({ contactToken: z.string().min(20).max(500_000), selectedPropertyIds: z.array(z.string().min(1).max(180)).max(20), contact: contactSchema }).safeParse(req.body);
+    if (!input.success) return res.status(422).json({ error: 'Revisa tus datos y autoriza el contacto.', issues: input.error.flatten() });
+    const searchId = String(req.params.searchId);
+    const snapshot = readSearch(input.data.contactToken, searchId);
+    if (!snapshot) return res.status(410).json({ error: 'Esta consulta venció o no es válida. Actualiza la búsqueda antes de pedir contacto.' });
+    const candidates = [...snapshot.matches, ...snapshot.alternatives];
     const selectedIds = [...new Set(input.data.selectedPropertyIds)];
-    const selected = confirmation.matches.filter((match) => selectedIds.includes(match.id));
-    if (!selected.length) return res.status(422).json({ error: 'Las propiedades seleccionadas ya no están disponibles en esta consulta.' });
-
-    try {
-      const emailResult = await sendAdvisorEmail(req.params.leadId, confirmation.lead, confirmation.analysis, selected);
-      await markLeadConfirmed(req.params.leadId, selected.map((item) => item.id), emailResult.sent);
-      return res.json({
-        confirmed: true,
-        emailSent: emailResult.sent,
-        selectedPropertyIds: selected.map((item) => item.id),
-        message: emailResult.sent
-          ? `Confirmada tu requisición. Enviamos al asesor ${selected.length} propiedad(es) seleccionada(s), incluyendo las ligas originales.`
-          : 'Confirmada tu requisición. La selección quedó registrada para que el asesor la revise.',
-      });
-    } catch (emailError) {
-      console.error('Advisor selection email failed.', emailError instanceof Error ? emailError.message : 'unknown');
-      await markLeadConfirmed(req.params.leadId, selected.map((item) => item.id), false);
-      return res.status(202).json({
-        confirmed: true,
-        emailSent: false,
-        selectedPropertyIds: selected.map((item) => item.id),
-        message: 'Confirmada tu requisición. La selección quedó registrada; el envío de correo al asesor está pendiente de configuración.',
-      });
+    if (selectedIds.some(id => !candidates.some(property => property.id === id))) return res.status(422).json({ error: 'Una propiedad seleccionada no pertenece a esta consulta.' });
+    const selected = candidates.filter(property => selectedIds.includes(property.id));
+    let pending = contactRequests.get(searchId);
+    if (!pending) {
+      pending = (async (): Promise<ContactResponse> => {
+        const lead = leadSchema.parse({ ...snapshot.criteria, ...input.data.contact });
+        const stored = await saveLead(lead, 'contact-' + searchId);
+        const previous = await getLeadForConfirmation(stored.id);
+        if (previous?.confirmationSent) return { confirmed: true, emailSent: true, duplicate: true, leadId: stored.id, selectedPropertyIds: previous.selectedPropertyIds, message: 'Tu solicitud ya fue enviada. Un asesor dará seguimiento.' };
+        await updateLeadResult(stored.id, { ...snapshot, matches: candidates, confirmationSent: false, emailSent: false, selectedPropertyIds: selectedIds }, snapshot.matches.length > 0);
+        try {
+          await sendAdvisorEmail(stored.id, lead, snapshot, selected);
+          await Promise.allSettled([markLeadConfirmed(stored.id, selectedIds, true), saveSearch(stored.id, lead, snapshot.analysis, candidates)]);
+          return { confirmed: true, emailSent: true, leadId: stored.id, selectedPropertyIds: selectedIds, message: 'Tu solicitud fue enviada al equipo de Círculo. Un asesor te contactará para revisar las opciones y los siguientes pasos.' };
+        } catch (error) {
+          console.error('Advisor report failed.', error instanceof Error ? error.message : 'unknown');
+          await markLeadConfirmed(stored.id, selectedIds, false);
+          return { confirmed: false, emailSent: false, leadId: stored.id, selectedPropertyIds: selectedIds, message: 'No pudimos enviar el reporte al equipo en este momento. Tus datos siguen en el formulario; puedes volver a intentarlo.' };
+        }
+      })();
+      contactRequests.set(searchId, pending);
+      // Persistence and provider idempotency handle subsequent retries/restarts.
+      pending.finally(() => contactRequests.delete(searchId)).catch(() => undefined);
     }
-  } catch (error) { return next(error); }
+    const result = await pending;
+    return res.status(result.emailSent ? 200 : 503).json(result);
+  } catch (error) { next(error); }
 });
+
+// Older cached clients must refresh instead of creating unsolicited email reports.
+app.post(['/api/leads', '/api/leads/:leadId/confirm'], (_req, res) => res.status(409).json({ error: 'El buscador se actualizó. Recarga la página para consultar opciones y solicitar contacto al final.' }));
 
 app.post('/api/admin/login', adminLimiter, async (req, res) => {
   const input = z.object({ login: z.string().min(3).max(180), password: z.string().min(8).max(200) }).safeParse(req.body);
@@ -167,7 +131,7 @@ app.get('/api/admin/status', requireAdmin, async (_req, res) => {
     model: config.openaiModel,
     openaiConfigured: Boolean(config.openaiApiKey),
     supabaseConfigured: Boolean(config.supabaseUrl && config.supabaseServiceRoleKey),
-    email: getEmailConfigurationStatus(),
+    email: await getEmailConfigurationStatus(),
     activeSources: providers.filter((provider) => provider.enabled && provider.baseUrl).length,
   });
 });
@@ -204,7 +168,7 @@ app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
   void _next;
   if (error instanceof z.ZodError) return res.status(422).json({ error: 'Datos inválidos.', issues: error.flatten() });
   console.error('Request failed.', error instanceof Error ? error.message : 'unknown');
-  return res.status(500).json({ error: 'La requisición no pudo registrarse en este momento. Verifica los datos e inténtalo nuevamente.' });
+  return res.status(500).json({ error: 'No fue posible completar esta operación. Inténtalo de nuevo en unos momentos.' });
 });
 
-app.listen(config.port, () => { console.log(`Círculo Inmobiliario escuchando en puerto ${config.port}`); });
+if (process.argv[1] === fileURLToPath(import.meta.url)) app.listen(config.port, () => { console.log('Círculo Inmobiliario escuchando en puerto ' + config.port); });
