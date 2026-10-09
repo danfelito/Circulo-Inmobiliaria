@@ -9,6 +9,7 @@ const senderDomain = (sender: string) => sender.match(/@([a-z0-9.-]+)/i)?.[1].to
 const publicDomains = new Set(['gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com', 'yahoo.com.mx', 'live.com', 'resend.dev']);
 const approvedDomains = ['circulointernacionalveracruz.org', 'circulointernacional.com'];
 let senderCache: { sender: string; expires: number } | null = null;
+let lastConfigurationWarning = { message: '', at: 0 };
 
 export async function resolveEmailSender(): Promise<string> {
   const domain = senderDomain(config.emailFrom);
@@ -28,6 +29,10 @@ export async function getEmailConfigurationStatus() {
   let sender = config.emailFrom, configurationMessage = '';
   try { if (config.resendApiKey) sender = await resolveEmailSender(); else configurationMessage = 'Falta configurar RESEND_API_KEY.'; }
   catch (error) { configurationMessage = error instanceof Error ? error.message : 'Revisa el remitente de correo.'; }
+  if (configurationMessage && (lastConfigurationWarning.message !== configurationMessage || Date.now() - lastConfigurationWarning.at > 5 * 60 * 1000)) {
+    console.warn('Advisor email configuration:', configurationMessage);
+    lastConfigurationWarning = { message: configurationMessage, at: Date.now() };
+  }
   return { configured: Boolean(config.resendApiKey && senderDomain(sender) && !configurationMessage), recipient: config.advisorEmails.join(', '), recipients: config.advisorEmails, sender, provider: 'Resend', verifiedSenderRequired: Boolean(configurationMessage), configurationMessage };
 }
 
@@ -67,7 +72,7 @@ export async function sendAdvisorEmail(leadId: string, lead: LeadInput, snapshot
   const report = buildAdvisorReport(leadId, lead, snapshot, selected);
   const result = await new Resend(config.resendApiKey).emails.send({
     from: sender, to: config.advisorEmails, ...(lead.email ? { replyTo: lead.email } : {}),
-    subject: 'Solicitud de asesoría · ' + lead.fullName + ' · ' + selected.length + ' propiedad(es) de interés',
+    subject: 'Solicitud de asesoría · ' + lead.fullName + ' · ' + selected.length + (selected.length === 1 ? ' propiedad de interés' : ' propiedades de interés'),
     html: report.html, text: report.text,
   }, { idempotencyKey: 'contact-' + leadId });
   if (result.error) throw new Error(result.error.message);

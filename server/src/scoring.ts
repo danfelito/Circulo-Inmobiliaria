@@ -91,7 +91,7 @@ function buildAdjustments(criteria: SearchCriteria, ranked: MatchResult[], sugge
   for (const group of [...zones.values()].slice(0, 3)) {
     const first = group[0];
     const location = [first.neighborhood, first.city].filter(Boolean).join(', ');
-    adjustments.push({ id: `location-${first.id}`, label: `Buscar en ${location}`, explanation: `${group.length} anuncio(s) cumple(n) tus demás criterios en esta ubicación, dentro de tu presupuesto.`, propertyIds: group.map(property => property.id), changes: { city: first.city, neighborhoods: first.neighborhood ? [first.neighborhood] : [] } });
+    adjustments.push({ id: `location-${first.id}`, label: `Buscar en ${location}`, explanation: `${group.length} ${group.length === 1 ? 'anuncio cumple' : 'anuncios cumplen'} tus demás criterios en esta ubicación, dentro de tu presupuesto.`, propertyIds: group.map(property => property.id), changes: { city: first.city, neighborhoods: first.neighborhood ? [first.neighborhood] : [] } });
   }
   return adjustments;
 }
@@ -100,7 +100,7 @@ export function deterministicAnalysis(criteria: SearchCriteria, matches: MatchRe
   const found = matches.length > 0;
   return {
     viability: found ? 'high' : alternatives.length ? 'medium' : 'insufficient_data',
-    headline: found ? `${matches.length} anuncio(s) coincide(n) con tus criterios.` : alternatives.length ? 'Encontramos alternativas con diferencias que debes revisar.' : 'No encontramos anuncios verificables con esta combinación.',
+    headline: found ? `${matches.length} ${matches.length === 1 ? 'anuncio coincide' : 'anuncios coinciden'} con tus criterios.` : alternatives.length ? 'Encontramos alternativas con diferencias que debes revisar.' : 'No encontramos anuncios verificables con esta combinación.',
     explanation: found ? 'Estas opciones cumplen el presupuesto, la ubicación y las características comparables publicadas. Un asesor confirmará su disponibilidad y las condiciones de la operación.' : alternatives.length ? 'Las alternativas muestran precios y ubicaciones publicados. En cada ficha indicamos qué cambia o qué dato falta por confirmar; ninguna se presenta como coincidencia exacta.' : 'Este resultado describe únicamente las fuentes consultadas. No demuestra que no existan opciones en todo el mercado. Puedes cambiar tus criterios o solicitar una búsqueda con un asesor.',
     pressurePoints: [...new Set(alternatives.flatMap(property => property.gaps))].slice(0, 6),
     suggestions: adjustments.length ? adjustments.map(item => item.explanation) : [found ? 'Selecciona las propiedades que te interesen y solicita contacto cuando lo decidas.' : 'Solicita al asesor ampliar la búsqueda; no hay evidencia suficiente para recomendar otro precio o zona.'],
