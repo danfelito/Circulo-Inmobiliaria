@@ -55,9 +55,14 @@ export function buildAdvisorReport(leadId: string, lead: LeadInput, snapshot: Se
     ['Indispensables', lead.essentialFeatures.join(', ') || 'Sin adicionales'], ['Deseables', [...lead.amenities, ...lead.desirableFeatures].join(', ') || 'Sin adicionales'],
     ['Mobiliario', lead.furnished || 'Indistinto'], ['Inicio / entrega deseada', lead.moveInDate || lead.delivery || 'Por definir'],
     ['Inquilinos / contrato', String(lead.tenants || 'Por definir') + ' / ' + (lead.contractMonths ? lead.contractMonths + ' meses' : 'Por definir')],
-    ['Mascotas', lead.hasPets ? lead.petDetails : 'No indicadas'], ['Forma de pago', lead.paymentMethod || 'Por definir'],
+    ...(lead.transactionType === 'rent' ? [
+      ['Tengo mascota', lead.hasPets ? String(lead.petCount) + ' · ' + lead.petType : 'No'],
+      ['Tengo fiador', lead.hasGuarantor ? 'Sí' : 'No'],
+      ['Cuento con póliza jurídica', lead.hasLegalPolicy ? 'Sí' : 'No'],
+      ['Facturación', lead.invoiceRequired ? 'Requiere factura' : 'No solicitada'],
+    ] as [string, string][] : []),
+    ['Forma de pago', lead.paymentMethod || 'Por definir'],
     ['Crédito preaprobado / monto', (lead.creditPreapproved ? 'Sí' : 'Por confirmar') + ' / ' + currency(lead.creditAmount || 0)],
-    ['Garantía / factura', (lead.guarantee || 'Por definir') + ' / ' + (lead.invoiceRequired ? 'Requiere factura' : 'No solicitada')],
     ['Comentarios', lead.comments || 'Sin comentarios'],
   ];
   const cards = selected.map((property, index) => '<div style="border:1px solid #ddd;border-left:4px solid #f51524;padding:16px;margin:12px 0;border-radius:10px"><h3>' + (index + 1) + '. ' + escapeHtml(property.title) + '</h3><p><strong>' + currency(property.price) + '</strong>' + (property.transactionType === 'rent' ? ' / mes' : '') + ' · ' + escapeHtml([property.neighborhood, property.city].filter(Boolean).join(', ')) + '</p><p>' + (property.matchType === 'exact' ? 'Coincide con los criterios publicados.' : 'Alternativa: ' + escapeHtml(property.gaps.join('; '))) + '</p><p>Fuente: ' + escapeHtml(property.sourceName) + ' · Consultada: ' + escapeHtml(property.verifiedAt) + '</p><a href="' + escapeHtml(property.sourceUrl) + '" style="color:#d61220">Abrir propiedad seleccionada</a><p style="font-size:12px;overflow-wrap:anywhere">' + escapeHtml(property.sourceUrl) + '</p></div>').join('');
