@@ -15,7 +15,7 @@ export function Wizard() {
   const [submitError, setSubmitError] = useState('');
   const [searchKey, setSearchKey] = useState(() => crypto.randomUUID());
   const saved = useMemo(() => storage.read(), []);
-  const form = useForm<LeadForm>({ resolver: zodResolver(schema) as Resolver<LeadForm>, defaultValues: saved || defaults, mode: 'onBlur' });
+  const form = useForm<LeadForm>({ resolver: zodResolver(schema) as Resolver<LeadForm>, defaultValues: saved ? { ...defaults, ...saved } : defaults, mode: 'onBlur' });
   const type = form.watch('transactionType'), propertyType = form.watch('propertyType'), hasPets = form.watch('hasPets'), payment = form.watch('paymentMethod');
 
   useEffect(() => {
@@ -25,12 +25,16 @@ export function Wizard() {
     return () => subscription.unsubscribe();
   }, [form]);
   useEffect(() => {
+    if (!hasPets || type !== 'rent') { form.setValue('petCount', 0); form.setValue('petType', ''); }
+    if (type !== 'rent') { form.setValue('hasPets', false); form.setValue('hasGuarantor', false); form.setValue('hasLegalPolicy', false); }
+  }, [form, hasPets, type]);
+  useEffect(() => {
     if (!['house', 'apartment'].includes(propertyType)) { form.setValue('bedrooms', 0); form.setValue('bathrooms', 0); }
     if (propertyType === 'land') { form.setValue('parking', 0); form.setValue('floors', 'indifferent'); form.setValue('yard', false); form.setValue('garden', false); form.setValue('pool', false); form.setValue('constructionAreaMin', 0); }
   }, [form, propertyType]);
 
   const next = async () => {
-    const groups: (keyof LeadForm)[][] = [[], ['propertyType', 'bedrooms', 'bathrooms', 'parking', 'landAreaMin', 'constructionAreaMin', 'petDetails', 'tenants', 'contractMonths', 'creditAmount'], ['city', 'budgetMin', 'budgetMax'], []];
+    const groups: (keyof LeadForm)[][] = [[], ['propertyType', 'bedrooms', 'bathrooms', 'parking', 'landAreaMin', 'constructionAreaMin', 'petCount', 'petType', 'tenants', 'contractMonths', 'creditAmount'], ['city', 'budgetMin', 'budgetMax'], []];
     if (step === 0 || await form.trigger(groups[step])) { setStep(current => Math.min(3, current + 1)); setSubmitError(''); document.querySelector('.wizard-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   };
   const onSubmit = form.handleSubmit(async values => {
