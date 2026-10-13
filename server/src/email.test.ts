@@ -3,6 +3,7 @@ const mocks = vi.hoisted(() => ({ send: vi.fn(async () => ({ data: { id: 'mail-t
 vi.mock('resend', () => ({ Resend: class { emails = { send: mocks.send }; domains = { list: mocks.list }; } }));
 vi.mock('./config.js', () => ({ config: { resendApiKey: 'test-only', emailFrom: 'Círculo <invalid@gmail.com>', advisorEmails: ['patyestr@hotmail.com', 'circulointernacionalveracruz1@gmail.com'] } }));
 import { buildAdvisorReport, sendAdvisorEmail } from './email.js';
+import { leadSchema } from './schemas.js';
 import { lead, property, snapshot } from './testFixtures.js';
 
 describe('reporte de contacto', () => {
@@ -23,5 +24,15 @@ describe('reporte de contacto', () => {
     expect(report.html).toContain('&lt;script&gt;');
     expect(report.html).not.toContain('<script>');
     expect(report.text).not.toContain('no-seleccionada');
+  });
+  it('incluye mascotas, fiador y póliza jurídica de las rentas en el informe', () => {
+    const rental = leadSchema.parse({ ...lead, transactionType: 'rent', hasPets: true, petCount: 2, petType: 'Gatos', hasGuarantor: true, hasLegalPolicy: true });
+    const report = buildAdvisorReport('renta', rental, snapshot(), []);
+    expect(report.text).toContain('Tengo mascota: 2 · Gatos');
+    expect(report.text).toContain('Tengo fiador: Sí');
+    expect(report.text).toContain('Cuento con póliza jurídica: Sí');
+    expect(report.html).toContain('Cuento con póliza jurídica');
+    const purchaseReport = buildAdvisorReport('compra', lead, snapshot(), []);
+    expect(purchaseReport.text).not.toContain('Cuento con póliza jurídica');
   });
 });

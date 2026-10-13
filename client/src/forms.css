@@ -30,6 +30,10 @@ h2 { color: var(--navy); font-family: Georgia, serif; font-size: clamp(28px, 4vw
 .field em, .consent-box em { color: var(--danger); font-size: 12px; font-style: normal; font-weight: 600; }
 hr { border: 0; border-top: 1px solid var(--line); margin: 34px 0 8px; }
 .checks-row { display: flex; flex-wrap: wrap; gap: 14px; margin: 22px 0; }
+.rental-requirements { margin-top: 24px; padding: 18px; border: 1px solid var(--line); border-radius: 14px; }
+.rental-requirements h3 { margin: 0; font-size: 14px; color: var(--navy); }
+.rental-requirements .checks-row { margin: 10px 0 0; gap: 14px 24px; }
+.rental-pet-fields { margin-top: 16px; }
 .toggle { display: inline-flex; align-items: center; gap: 9px; min-height: 45px; }
 .toggle input { position: absolute; opacity: 0; }
 .toggle span { width: 42px; height: 24px; background: #d7dce3; border-radius: 99px; padding: 3px; transition: .2s; }

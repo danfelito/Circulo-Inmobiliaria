@@ -8,14 +8,17 @@ export const idempotencyStorageKey = 'circulo-search-idempotency-v3';
 
 export const schema = z.object({
   transactionType: z.enum(['rent', 'buy']),
-  tenants: z.coerce.number().optional(), hasPets: z.boolean(), petDetails: z.string(), moveInDate: z.string(), contractMonths: z.coerce.number().optional(),
+  tenants: z.coerce.number().optional(), hasPets: z.boolean(), petCount: z.coerce.number().int().min(0).max(30), petType: z.string().trim().max(120), hasGuarantor: z.boolean(), hasLegalPolicy: z.boolean(), petDetails: z.string(), moveInDate: z.string(), contractMonths: z.coerce.number().optional(),
   propertyType: z.enum(['house', 'apartment', 'land', 'retail', 'office', 'warehouse', 'ranch']), furnished: z.enum(['furnished', 'semi', 'unfurnished', 'indifferent']).optional(), floors: z.enum(['1', '2', '3', 'indifferent']),
   bedrooms: z.coerce.number().min(0), bathrooms: z.coerce.number().min(0), parking: z.coerce.number().min(0), yard: z.boolean(), garden: z.boolean(), pool: z.boolean(), amenities: z.array(z.string()), invoiceRequired: z.boolean().optional(), guarantee: z.enum(['guarantor', 'legal_policy', 'deposit', 'advice']).optional(),
   delivery: z.enum(['presale', 'immediate', 'indifferent']).optional(), paymentMethod: z.enum(['credit', 'cash', 'mixed']).optional(), creditPreapproved: z.boolean().optional(), creditAmount: z.coerce.number().optional(), landAreaMin: z.coerce.number().optional(), constructionAreaMin: z.coerce.number().optional(), city: z.string().min(2, 'Indica la ciudad o municipio.'),
   neighborhood1: z.string(), neighborhood2: z.string(), neighborhood3: z.string(), budgetMin: z.coerce.number().min(0), budgetMax: z.coerce.number().positive('Indica el presupuesto máximo.'), essentialText: z.string(), desirableText: z.string(), comments: z.string(), website: z.string().max(0),
 }).superRefine((data, ctx) => {
   if (data.budgetMax < data.budgetMin) ctx.addIssue({ code: 'custom', path: ['budgetMax'], message: 'El máximo debe ser mayor o igual al mínimo.' });
-  if (data.hasPets && !data.petDetails.trim()) ctx.addIssue({ code: 'custom', path: ['petDetails'], message: 'Describe tus mascotas.' });
+  if (data.transactionType === 'rent' && data.hasPets) {
+    if (!Number.isInteger(data.petCount) || data.petCount < 1) ctx.addIssue({ code: 'custom', path: ['petCount'], message: 'Indica cuántas mascotas tienes.' });
+    if (!data.petType.trim()) ctx.addIssue({ code: 'custom', path: ['petType'], message: 'Indica qué tipo de mascota tienes.' });
+  }
 });
 
-export const defaults: LeadForm = { transactionType: 'rent', tenants: 1, hasPets: false, petDetails: '', moveInDate: '', contractMonths: 12, propertyType: 'house', furnished: 'indifferent', floors: 'indifferent', bedrooms: 2, bathrooms: 1, parking: 1, yard: false, garden: false, pool: false, amenities: [], invoiceRequired: false, guarantee: 'advice', delivery: 'indifferent', paymentMethod: 'credit', creditPreapproved: false, creditAmount: 0, landAreaMin: 0, constructionAreaMin: 0, city: '', neighborhood1: '', neighborhood2: '', neighborhood3: '', budgetMin: 0, budgetMax: 0, essentialText: '', desirableText: '', comments: '', website: '' };
+export const defaults: LeadForm = { transactionType: 'rent', tenants: 1, hasPets: false, petCount: 0, petType: '', hasGuarantor: false, hasLegalPolicy: false, petDetails: '', moveInDate: '', contractMonths: 12, propertyType: 'house', furnished: 'indifferent', floors: 'indifferent', bedrooms: 2, bathrooms: 1, parking: 1, yard: false, garden: false, pool: false, amenities: [], invoiceRequired: false, guarantee: 'advice', delivery: 'indifferent', paymentMethod: 'credit', creditPreapproved: false, creditAmount: 0, landAreaMin: 0, constructionAreaMin: 0, city: '', neighborhood1: '', neighborhood2: '', neighborhood3: '', budgetMin: 0, budgetMax: 0, essentialText: '', desirableText: '', comments: '', website: '' };
