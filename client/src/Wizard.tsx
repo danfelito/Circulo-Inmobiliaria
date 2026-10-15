@@ -3,11 +3,11 @@ import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { submitSearch } from './api';
 import type { LeadForm, SearchAdjustment, SearchResponse } from './types';
-import { defaults, draftKey, schema } from './formConfig';
+import { defaults, draftKey, normalizeRentalFields, restoreDraft, schema } from './formConfig';
 import { Results } from './Results';
 import { StepLocation, StepMode, StepProperty, StepReview } from './Steps';
 
-const storage = { read: () => { try { return JSON.parse(sessionStorage.getItem(draftKey) || 'null') as LeadForm | null; } catch { return null; } }, save: (value: unknown) => { try { sessionStorage.setItem(draftKey, JSON.stringify(value)); } catch { /* Storage is optional. */ } } };
+const storage = { read: () => { try { return restoreDraft(JSON.parse(sessionStorage.getItem(draftKey) || 'null')); } catch { return restoreDraft(null); } }, save: (value: unknown) => { try { sessionStorage.setItem(draftKey, JSON.stringify(value)); } catch { /* Storage is optional. */ } } };
 export function Wizard() {
   const [step, setStep] = useState(0);
   const [result, setResult] = useState<SearchResponse | null>(null);
@@ -15,18 +15,19 @@ export function Wizard() {
   const [submitError, setSubmitError] = useState('');
   const [searchKey, setSearchKey] = useState(() => crypto.randomUUID());
   const saved = useMemo(() => storage.read(), []);
-  const form = useForm<LeadForm>({ resolver: zodResolver(schema) as Resolver<LeadForm>, defaultValues: saved ? { ...defaults, ...saved } : defaults, mode: 'onBlur' });
+  const form = useForm<LeadForm>({ resolver: zodResolver(schema) as Resolver<LeadForm>, defaultValues: saved, mode: 'onBlur' });
   const type = form.watch('transactionType'), propertyType = form.watch('propertyType'), hasPets = form.watch('hasPets'), payment = form.watch('paymentMethod');
 
   useEffect(() => {
     // Retire the old draft containing contact data. New drafts contain criteria only.
     try { localStorage.removeItem('circulo-real-estate-draft-v1'); localStorage.removeItem('circulo-real-estate-idempotency-v2'); } catch { /* Storage is optional. */ }
-    const subscription = form.watch(value => storage.save(value));
+    storage.save(normalizeRentalFields(form.getValues()));
+    const subscription = form.watch(value => storage.save(normalizeRentalFields(value as LeadForm)));
     return () => subscription.unsubscribe();
   }, [form]);
   useEffect(() => {
-    if (!hasPets || type !== 'rent') { form.setValue('petCount', 0); form.setValue('petType', ''); }
-    if (type !== 'rent') { form.setValue('hasPets', false); form.setValue('hasGuarantor', false); form.setValue('hasLegalPolicy', false); }
+    if (type === 'buy') { form.setValue('hasPets', false); form.setValue('hasGuarantor', false); form.setValue('hasLegalPolicy', false); }
+    if (type === 'buy' || !hasPets) { form.setValue('petCount', undefined); form.setValue('petType', ''); form.clearErrors(['petCount', 'petType']); }
   }, [form, hasPets, type]);
   useEffect(() => {
     if (!['house', 'apartment'].includes(propertyType)) { form.setValue('bedrooms', 0); form.setValue('bathrooms', 0); }

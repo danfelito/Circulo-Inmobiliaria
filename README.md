@@ -28,6 +28,22 @@ Las consultas no representan todo el mercado. Un anuncio localizado no
 garantiza disponibilidad; el asesor debe confirmarla y revisar las condiciones
 de pago, contrato, mascotas y fecha de entrega con el anunciante.
 
+En «La propiedad», la modalidad de renta muestra juntas las casillas «Tengo
+mascota», «Tengo fiador» y «Cuento con póliza jurídica». Fiador y póliza se
+pueden marcar o desmarcar de forma independiente. Al marcar mascota se pide
+una cantidad entera de 1 a 30 y el tipo (hasta 120 caracteres). Son datos
+declarados por el cliente: ni su aceptación ni las garantías exigidas por cada
+anuncio se dan por verificadas. La clasificación de anuncios sigue usando
+únicamente las características publicadas que sí se pueden comparar.
+
+Los borradores de sesión conservan los demás filtros. Un borrador antiguo
+convierte `guarantee=guarantor` o `guarantee=legal_policy` a la casilla
+correspondiente cuando no hay selección explícita, y conserva el texto previo
+de mascotas para revisión. No deduce cantidades de ese texto. Al desmarcar
+mascota se limpian cantidad y tipo; al cambiar a compra se limpian las tres
+casillas. Los criterios y las solicitudes de contacto se guardan como JSON;
+estas casillas no requieren una migración de base de datos.
+
 ## Configuración
 
 Las claves de OpenAI, Resend, Supabase y administración permanecen en Render.

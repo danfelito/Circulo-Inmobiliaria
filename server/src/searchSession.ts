@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { config } from './config.js';
-import type { SearchSnapshot } from './schemas.js';
+import { criteriaSchema, type SearchSnapshot } from './schemas.js';
 
 const maxAgeMs = 2 * 60 * 60 * 1000;
 const signature = (body: string) => createHmac('sha256', config.sessionSecret).update(`property-search-v1:${body}`).digest('base64url');
@@ -23,6 +23,11 @@ export function readSearch(token: string, searchId: string, now = Date.now()): S
     const snapshot = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as SearchSnapshot;
     const age = now - Date.parse(snapshot.createdAt);
     if (snapshot.searchId !== searchId || !Number.isFinite(age) || age < 0 || age > maxAgeMs) return null;
-    return snapshot;
+    // Existing production tokens already use numeric petCount and petType.
+    // Normalize stale rental fields and legacy guarantees before contact, but
+    // refresh older pet searches that lack a separate count or type.
+    const criteria = criteriaSchema.safeParse(snapshot.criteria);
+    if (!criteria.success) return null;
+    return { ...snapshot, criteria: criteria.data };
   } catch { return null; }
 }
