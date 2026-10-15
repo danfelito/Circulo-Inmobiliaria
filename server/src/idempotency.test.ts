@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+vi.mock('./config.js', () => ({ config: { supabaseUrl: '', supabaseServiceRoleKey: '' } }));
 import { saveLead } from './repository.js';
 import type { LeadInput } from './schemas.js';
 
 const lead: LeadInput = {
   transactionType: 'buy', fullName: 'Prueba Idempotencia', email: 'idempotencia@example.com', phone: '2290000000',
-  hasPets: false, petDetails: '', moveInDate: '', propertyType: 'apartment', floors: 'indifferent', bedrooms: 2, bathrooms: 1,
+  hasPets: false, petCount: 0, petType: '', petDetails: '', hasGuarantor: false, hasLegalPolicy: false, moveInDate: '', propertyType: 'apartment', floors: 'indifferent', bedrooms: 2, bathrooms: 1,
   parking: 1, yard: false, garden: false, pool: false, amenities: [], delivery: 'indifferent', paymentMethod: 'cash', city: 'Boca del Río',
   neighborhoods: [], budgetMin: 1000000, budgetMax: 3000000, essentialFeatures: [], desirableFeatures: [], comments: '',
   privacyAccepted: true, contactAccepted: true, website: '',

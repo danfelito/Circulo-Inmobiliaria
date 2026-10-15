@@ -64,4 +64,16 @@ describe('resultados y alternativas basados en anuncios', () => {
     expect(analysis.suggestions.join(' ')).not.toMatch(/15%|10%/);
     expect(analysis.explanation).toContain('únicamente las fuentes');
   });
+  it('declara las condiciones de renta pendientes sin alterar el orden de los anuncios', () => {
+    const rentalCriteria = { ...criteria, transactionType: 'rent' as const, hasPets: true, petCount: 2, petType: 'Perros', hasGuarantor: true, hasLegalPolicy: true };
+    const rentals = [{ ...property, transactionType: 'rent' as const }, { ...property, id: 'more-expensive', price: 2_400_000, transactionType: 'rent' as const }];
+    const result = rankProperties(rentalCriteria, rentals);
+    const withoutDeclarations = rankProperties({ ...rentalCriteria, hasPets: false, petCount: 0, petType: '', hasGuarantor: false, hasLegalPolicy: false }, rentals);
+    expect(result).toEqual(withoutDeclarations);
+    const analysis = deterministicAnalysis(rentalCriteria, result.matches, result.alternatives, result.adjustments);
+    expect(analysis.explanation).toContain('no están verificadas');
+    expect(analysis.explanation).toContain('confirmar estas condiciones con la fuente');
+    expect(result.matches.flatMap(item => item.reasons).join(' ')).not.toMatch(/mascotas|fiador|póliza/);
+    expect(deterministicAnalysis(criteria, result.matches).explanation).not.toContain('mascotas');
+  });
 });

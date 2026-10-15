@@ -1,4 +1,5 @@
 import type { ConfirmationResponse, ContactForm, LeadForm, SearchResponse } from './types';
+import { normalizeRentalFields } from './formConfig';
 const splitFeatures = (value: string) => value.split(/[\n,;]/).map(item => item.trim()).filter(Boolean);
 
 async function readJson(response: Response) {
@@ -12,7 +13,7 @@ async function readJson(response: Response) {
 }
 
 export async function submitSearch(form: LeadForm, idempotencyKey: string): Promise<SearchResponse> {
-  const criteria = form.transactionType === 'rent' ? form : { ...form, hasPets: false, petCount: 0, petType: '', hasGuarantor: false, hasLegalPolicy: false };
+  const criteria = normalizeRentalFields(form);
   const payload = { ...criteria, neighborhoods: [form.neighborhood1, form.neighborhood2, form.neighborhood3].map(item => item.trim()).filter(Boolean), essentialFeatures: splitFeatures(form.essentialText), desirableFeatures: splitFeatures(form.desirableText) };
   return readJson(await fetch('/api/searches', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey }, body: JSON.stringify(payload) }));
 }
