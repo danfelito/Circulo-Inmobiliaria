@@ -9,6 +9,7 @@
   .site-header { align-items: center; padding-inline: 14px; }
   nav { display: none; }
   .brand { gap: 9px; }
+  .brand-logo { width: 165px; }
   .brand-mark { width: 48px; height: 48px; flex-basis: 48px; }
   .brand-lettering strong { font-size: 10px; letter-spacing: .08em; }
   .brand-lettering b { font-size: 18px; margin-top: 5px; }
