@@ -33,7 +33,7 @@ export function Shell({ children }: { children: ReactNode }) {
   return <>
     <header className="site-header">
       <Link to="/" className="brand" aria-label="Círculo Internacional de Bienes Raíces">
-        <img className="brand-logo" src="/circulo-logo.png" alt="" aria-hidden="true" />
+        <img className="brand-logo" src={isDark ? '/circulo-logo-dark.svg' : '/circulo-logo-light.svg'} alt="" aria-hidden="true" />
       </Link>
       <div className="header-actions">
         <nav>
