@@ -64,3 +64,17 @@ npm start
 GET /api/health identifica guided-search-v2.
 GET /api/contact-status informa si el envío tiene configuración utilizable.
 Render despliega automáticamente los commits de main.
+
+## Sitio estático de Render
+
+El frontend puede publicarse por separado como Static Site con el mismo repositorio:
+
+- Build command: `npm ci --include=dev && npm run build -w client`
+- Publish path: `client/dist`
+- Variable de compilación: `VITE_API_BASE_URL=https://circulo-inmobiliario.onrender.com`
+- Reescritura SPA: `/*` hacia `/index.html`
+
+El servicio web conserva las rutas `/api`, las claves privadas y el panel administrativo.
+Configura `STATIC_CLIENT_ORIGIN` en ese servicio con la URL exacta del nuevo sitio
+estático. El frontend permite `/api` relativo si no se define `VITE_API_BASE_URL`,
+para que el despliegue web y el desarrollo local sigan funcionando.
