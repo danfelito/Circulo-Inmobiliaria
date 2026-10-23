@@ -72,7 +72,8 @@ El frontend puede publicarse por separado como Static Site con el mismo reposito
 - Build command: `npm ci --include=dev && npm run build -w client`
 - Publish path: `client/dist`
 - Variable de compilación: `VITE_API_BASE_URL=https://circulo-inmobiliario.onrender.com`
-- Reescritura SPA: `/*` hacia `/index.html`
+- Las rutas actuales `/admin`, `/privacidad` y `/terminos` se generan como
+  páginas de entrada estáticas en la compilación para permitir enlaces directos.
 
 El servicio web conserva las rutas `/api`, las claves privadas y el panel administrativo.
 Configura `STATIC_CLIENT_ORIGIN` en ese servicio con la URL exacta del nuevo sitio
