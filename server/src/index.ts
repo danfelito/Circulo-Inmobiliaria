@@ -28,7 +28,8 @@ export const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors({ origin: isProduction ? config.clientOrigin.split(',').map((item) => item.trim()) : true, credentials: false }));
+const allowedClientOrigins = [config.clientOrigin, config.staticClientOrigin].flatMap(value => value.split(',').map(item => item.trim()).filter(Boolean));
+app.use(cors({ origin: isProduction ? allowedClientOrigins : true, credentials: false }));
 app.use(express.json({ limit: '3mb' }));
 
 const publicLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 60, standardHeaders: true, legacyHeaders: false });

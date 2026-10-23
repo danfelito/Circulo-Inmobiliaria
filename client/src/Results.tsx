@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { requestAdvisorContact } from './api';
+import { apiUrl } from './apiUrl';
 import { Field } from './FormParts';
 import { labelProperty } from './formConfig';
 import type { ConfirmationResponse, ContactForm, PropertyMatch, SearchAdjustment, SearchResponse } from './types';
@@ -39,7 +40,7 @@ export function Results({ result, onReconfigure, onNew, onApply }: { result: Sea
   useEffect(() => {
     if (!showContact) return;
     let active = true;
-    void fetch('/api/contact-status').then(response => response.ok ? response.json() : null).then(data => { if (active && data) setEmailAvailable(Boolean(data.available)); }).catch(() => undefined);
+    void fetch(apiUrl('/api/contact-status')).then(response => response.ok ? response.json() : null).then(data => { if (active && data) setEmailAvailable(Boolean(data.available)); }).catch(() => undefined);
     return () => { active = false; };
   }, [showContact]);
   const toggle = (id: string) => setSelected(current => current.includes(id) ? current.filter(value => value !== id) : [...current, id]);

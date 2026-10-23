@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Provider, ProviderCheck } from './types';
 import { Field } from './FormParts';
+import { apiUrl } from './apiUrl';
 
 type AdminStatus = {
   ok: boolean;
@@ -43,7 +44,7 @@ export function Admin() {
   const [busy, setBusy] = useState(false);
 
   const authorizedFetch = useCallback(async (path: string, activeToken: string, init?: RequestInit) => {
-    const response = await fetch(path, { ...init, headers: { ...(init?.headers || {}), Authorization: `Bearer ${activeToken}` } });
+    const response = await fetch(apiUrl(path as `/api/${string}`), { ...init, headers: { ...(init?.headers || {}), Authorization: `Bearer ${activeToken}` } });
     return readJson(response);
   }, []);
 
@@ -72,7 +73,7 @@ export function Admin() {
   const login = async () => {
     setBusy(true); setMessage('');
     try {
-      const data = await readJson(await fetch('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: loginValue, password }) }));
+      const data = await readJson(await fetch(apiUrl('/api/admin/login'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: loginValue, password }) }));
       localStorage.setItem('circulo-admin-token', data.token);
       setToken(data.token);
       await loadAdmin(data.token);
