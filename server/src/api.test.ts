@@ -3,7 +3,7 @@ import type { Server } from 'node:http';
 import { criteria, lead, property } from './testFixtures.js';
 const mocks = vi.hoisted(() => ({ inventory: vi.fn(), send: vi.fn() }));
 vi.mock('./providers.js', () => ({ collectProviderInventory: mocks.inventory, checkProviderSources: vi.fn() }));
-vi.mock('./email.js', () => ({ sendAdvisorEmail: mocks.send, sendTestEmail: vi.fn(), getEmailConfigurationStatus: vi.fn(async () => ({ configured: true })) }));
+vi.mock('./email.js', () => ({ sendAdvisorEmail: mocks.send, buildAdvisorReport: vi.fn(() => ({ html: '', text: 'reporte' })), sendTestEmail: vi.fn(), getEmailConfigurationStatus: vi.fn(async () => ({ configured: true })) }));
 import { app } from './index.js';
 let server: Server, base: string;
 beforeAll(async () => { server = app.listen(0, '127.0.0.1'); await new Promise<void>(resolve => server.once('listening', resolve)); const address = server.address(); if (!address || typeof address === 'string') throw new Error('No port'); base = 'http://127.0.0.1:' + address.port; });

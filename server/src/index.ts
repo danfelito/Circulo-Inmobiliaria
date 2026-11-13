@@ -21,7 +21,8 @@ import {
   updateLeadResult,
 } from './repository.js';
 import { checkProviderSources, collectProviderInventory } from './providers.js';
-import { getEmailConfigurationStatus, sendAdvisorEmail, sendTestEmail } from './email.js';
+import { buildAdvisorReport, getEmailConfigurationStatus, sendAdvisorEmail, sendTestEmail } from './email.js';
+import { syncLeadToCrm } from './crm.js';
 import { issueAdminToken, validateAdminCredentials, verifyAdminToken } from './adminAuth.js';
 
 export const app = express();
@@ -90,13 +91,15 @@ app.post('/api/searches/:searchId/contact', submitLimiter, async (req, res, next
         const previous = await getLeadForConfirmation(stored.id);
         if (previous?.confirmationSent) return { confirmed: true, emailSent: true, duplicate: true, leadId: stored.id, selectedPropertyIds: previous.selectedPropertyIds, message: 'Tu solicitud ya fue enviada. Un asesor dará seguimiento.' };
         await updateLeadResult(stored.id, { ...snapshot, matches: candidates, confirmationSent: false, emailSent: false, selectedPropertyIds: selectedIds }, snapshot.matches.length > 0);
+        // The prospect reaches the CRM even if the advisor email fails.
+        const crmSync = syncLeadToCrm(searchId, lead, buildAdvisorReport(stored.id, lead, snapshot, selected).text);
         try {
           await sendAdvisorEmail(stored.id, lead, snapshot, selected);
-          await Promise.allSettled([markLeadConfirmed(stored.id, selectedIds, true), saveSearch(stored.id, lead, snapshot.analysis, candidates)]);
+          await Promise.allSettled([markLeadConfirmed(stored.id, selectedIds, true), saveSearch(stored.id, lead, snapshot.analysis, candidates), crmSync]);
           return { confirmed: true, emailSent: true, leadId: stored.id, selectedPropertyIds: selectedIds, message: 'Tu solicitud fue enviada al equipo de Círculo. Un asesor te contactará para revisar las opciones y los siguientes pasos.' };
         } catch (error) {
           console.error('Advisor report failed.', error instanceof Error ? error.message : 'unknown');
-          await markLeadConfirmed(stored.id, selectedIds, false);
+          await Promise.allSettled([markLeadConfirmed(stored.id, selectedIds, false), crmSync]);
           return { confirmed: false, emailSent: false, leadId: stored.id, selectedPropertyIds: selectedIds, message: 'No pudimos enviar el reporte al equipo en este momento. Tus datos siguen en el formulario; puedes volver a intentarlo.' };
         }
       })();

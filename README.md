@@ -52,6 +52,14 @@ se usa memoria temporal. El correo recibido por los asesores contiene el
 reporte completo aun en ese caso. Las fuentes editadas en memoria se pierden
 al reiniciar: configure Supabase para conservarlas.
 
+## CRM de Círculo
+
+Al solicitar contacto, el servidor también registra el prospecto en el CRM
+(`POST CRM_INQUIRY_URL`, por defecto `https://circulointernacionalveracruz.org/api/inquiries`)
+con `utm_source=buscador`. El CRM crea contacto, actividad y tarea de seguimiento a 24 h.
+El `requestId` se deriva de la consulta, así que los reintentos no duplican.
+Un fallo del CRM se registra en el log y no bloquea el correo a los asesores.
+
 ## Desarrollo
 
 npm ci --include=dev

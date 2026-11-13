@@ -19,6 +19,7 @@ export const config = {
   adminLogin: process.env.ADMIN_LOGIN ?? 'circulointernacionalveracruz1@gmail.com',
   adminPassword: process.env.ADMIN_PASSWORD ?? '',
   adminPasswordHash: process.env.ADMIN_PASSWORD_HASH ?? '$2b$12$QoNtflnxNQirKwYrCDc.9.RRW1FDsoLuspJowOelRX3J902Wnmvaq',
+  crmInquiryUrl: process.env.CRM_INQUIRY_URL ?? (process.env.NODE_ENV === 'production' ? 'https://circulointernacionalveracruz.org/api/inquiries' : ''),
   sessionSecret: process.env.SESSION_SECRET ?? 'development-only-secret-change-me',
 };
 
