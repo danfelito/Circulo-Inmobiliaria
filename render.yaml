@@ -35,5 +35,9 @@ services:
         value: circulointernacionalveracruz1
       - key: ADMIN_PASSWORD
         sync: false
+      - key: STATIC_CLIENT_ORIGIN
+        value: https://circulo-inmobiliario-web.onrender.com
+      - key: CRM_INQUIRY_URL
+        value: https://circulointernacionalveracruz.org/api/inquiries
       - key: SESSION_SECRET
         generateValue: true
